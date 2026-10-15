@@ -44,7 +44,7 @@ th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:50
 <div id="bud"></div>
 <main id="m"></main>
 <script>
-const API = "https://cchook-sys.github.io/nba-pinnacle-tracker/";
+const API = "https://nba-pinnacle-tracker.onrender.com";
 const STEAM = {spread:1.0,total:1.5};
 const $ = s => document.querySelector(s);
 const j = p => fetch(API + p).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
