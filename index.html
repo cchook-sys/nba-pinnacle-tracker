@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NBA 盤口追蹤</title>
+<style>
+:root{--bg:#0e1420;--panel:#161e2f;--panel2:#1d2740;--line:#2b3856;--tx:#e7ebf5;--mut:#8c98b5;--amber:#f2a33a;--win:#3fb6a0;--loss:#e0605a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Noto Sans TC",system-ui,sans-serif}
+header{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0;font-weight:700}
+nav{display:flex;gap:4px;margin-left:auto}
+nav button{background:none;border:1px solid var(--line);color:var(--mut);padding:6px 14px;border-radius:6px;cursor:pointer;font:inherit}
+nav button.on{background:var(--panel2);color:var(--tx);border-color:var(--amber)}
+nav button:focus-visible,.game:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+main{max-width:920px;margin:0 auto;padding:16px}
+#bud{color:var(--mut);font-size:13px;padding:0 20px 0}
+.game{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;cursor:pointer}
+.top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.teams{font-weight:700;font-size:17px}.tip{color:var(--mut);font-size:13px}
+.lines{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.cell{background:var(--panel2);border-radius:8px;padding:8px 12px}
+.cell small{color:var(--mut);display:block}
+.mv{font-size:18px;font-variant-numeric:tabular-nums}
+.d{font-weight:700;margin-left:6px}.d.hot{color:var(--amber)}
+.chips{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:2px 10px;font-size:13px}
+.chip.win{border-color:var(--win);color:var(--win)}.chip.loss{border-color:var(--loss);color:var(--loss)}.chip.push{border-color:var(--mut);color:var(--mut)}
+.note{color:var(--mut);font-size:13px;margin-top:8px}
+.spark{display:none;margin-top:12px}.game.open .spark{display:block}
+svg{width:100%;height:90px;background:var(--panel2);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:500}
+.ok{color:var(--win)}.empty{color:var(--mut);padding:40px 0;text-align:center}
+</style>
+</head>
+<body>
+<header><h1>NBA 盤口追蹤</h1><nav role="tablist">
+<button id="t1" class="on" onclick="tab(1)">今日盤口</button>
+<button id="t2" onclick="tab(2)">戰績</button>
+<button id="t3" onclick="tab(3)">紀錄</button></nav></header>
+<div id="bud"></div>
+<main id="m"></main>
+<script>
+const API = "https://YOUR-NBA-APP.onrender.com";   // ← 改成你的 Render 網址
+const STEAM = {spread:1.0,total:1.5};
+const $ = s => document.querySelector(s);
+const j = p => fetch(API + p).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const fmt = n => n == null ? "–" : (n > 0 ? "+" : "") + n;
+const tw = t => new Date(t).toLocaleString("zh-TW", {timeZone:"Asia/Taipei", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false});
+const SIDE = {home:"主隊",away:"客隊",over:"大分",under:"小分"}, MK = {spread:"讓分",total:"大小分"};
+let cur = 1;
+
+function tab(n){ cur = n; [1,2,3].forEach(i => $("#t"+i).classList.toggle("on", i===n)); load(); }
+
+function chipP(p){
+  const r = p.settled ? p.result : null;
+  const txt = `${MK[p.market]} ${SIDE[p.side]} @${p.market==="spread"?fmt(p.line_at_pick):p.line_at_pick}` +
+    (r ? ` · ${{win:"贏",loss:"輸",push:"走水"}[r]}` : " · 待結算");
+  return `<span class="chip ${r||""}">${txt}</span>`;
+}
+
+function cell(label, open, now, th){
+  if (now == null) return `<div class="cell"><small>${label}</small>–</div>`;
+  const d = open == null ? 0 : +(now - open).toFixed(1), hot = Math.abs(d) >= th;
+  return `<div class="cell"><small>${label}（初盤 → 現盤）</small><span class="mv">${fmt(open)} → ${label==="大小分"?now:fmt(now)}</span>` +
+    `<span class="d ${hot?"hot":""}">${d>0?"▲":d<0?"▼":""}${d?Math.abs(d):""}</span></div>`;
+}
+
+function spark(series, key){
+  const v = series.map(s => s[key]).filter(x => x != null);
+  if (v.length < 2) return `<div class="note">快照不足，至少需要 2 筆才畫得出走勢。</div>`;
+  const lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1;
+  const pts = v.map((x,i) => `${10+i*(380/(v.length-1))},${80-(x-lo)/r*70}`).join(" ");
+  return `<svg viewBox="0 0 400 90" role="img" aria-label="${key} 走勢"><polyline fill="none" stroke="#f2a33a" stroke-width="2" points="${pts}"/></svg>`;
+}
+
+async function toggle(el, id){
+  el.classList.toggle("open");
+  const box = el.querySelector(".spark");
+  if (box.dataset.l) return; box.dataset.l = 1;
+  const s = await j("/game/" + id);
+  box.innerHTML = `<small class="note">讓分走勢</small>${spark(s,"spread")}<small class="note">大小分走勢</small>${spark(s,"total")}`;
+}
+
+async function games(){
+  const g = await j("/games");
+  if (!g.length) return `<div class="empty">目前沒有即將開打的場次，系統會在下一個賽程日自動抓取。</div>`;
+  return g.map(x => {
+    const l = x.latest || {};
+    return `<div class="game" tabindex="0" onclick="toggle(this,'${x.id}')" onkeydown="if(event.key==='Enter')toggle(this,'${x.id}')">
+    <div class="top"><span class="teams">${x.away} @ ${x.home}</span><span class="tip">開賽 ${tw(x.commence)}（台灣時間）· ${x.n_snaps} 筆快照</span></div>
+    <div class="lines">${cell("讓分（主）", x.open_spread, l.spread, STEAM.spread)}${cell("大小分", x.open_total, l.total, STEAM.total)}</div>
+    <div class="chips">${x.picks.map(chipP).join("") || '<span class="note">尚無鎖定的 pick（開賽前 2 小時～45 分鐘內達門檻才鎖定）</span>'}</div>
+    <div class="spark"></div></div>`;
+  }).join("");
+}
+
+async function stats(){
+  const s = await j("/stats");
+  const row = (name, b) => b ? `<tr><td>${name}</td><td>${b.n}</td><td>${b.win_rate==null?"–":(b.win_rate*100).toFixed(1)+"%"}</td><td>${(b.wilson_lb*100).toFixed(1)}%</td><td>${b.avg_clv_pts==null?"–":fmt(b.avg_clv_pts)}</td><td class="${b.edge_claim?"ok":""}">${b.edge_claim?"通過":b.n<s.min_n?"樣本不足":"未通過"}</td></tr>` : "";
+  const keys = Object.keys(s).filter(k => /^(spread|total)_/.test(k));
+  return `<table><tr><th>分類</th><th>場數</th><th>勝率</th><th>Wilson 下界</th><th>平均 CLV</th><th>判定</th></tr>
+  ${row("全部",s.all)}${row("讓分",s.spread)}${row("大小分",s.total)}${keys.map(k=>row(k.replace("_"," · ").replace("spread","讓分").replace("total","大小分").replace(/home|away|over|under/,m=>SIDE[m]),s[k])).join("")}</table>
+  <p class="note">勝率排除走水。需 n≥${s.min_n} 且 Wilson 下界 > ${(s.breakeven*100).toFixed(1)}%（-110 損益平衡）才算有 edge；另有 ${s.pending} 筆待結算。CLV 為鎖定盤口相對收盤盤口的點數優勢，正值代表買到比收盤更好的數字。</p>`;
+}
+
+async function log(){
+  const [p, d] = await Promise.all([j("/picks?limit=60"), j("/diagnostics/locks?days=14")]);
+  const oc = Object.entries(d.outcomes).map(([k,v]) => `${k}: ${v}`).join("　") || "尚無資料";
+  return `<p class="note">近 14 天鎖定漏斗（${d.days_with_data} 天有資料）：${oc}</p>
+  <table><tr><th>場次</th><th>Pick</th><th>初盤</th><th>鎖定盤</th><th>收盤</th><th>結果</th></tr>` +
+  p.map(x => `<tr><td>${x.away}@${x.home}</td><td>${MK[x.market]} ${SIDE[x.side]}</td><td>${x.open_line}</td><td>${x.line_at_pick}</td><td>${x.close_line ?? "–"}</td><td>${x.settled ? {win:"贏",loss:"輸",push:"走水"}[x.result] : "待結算"}</td></tr>`).join("") + `</table>`;
+}
+
+async function load(){
+  $("#m").innerHTML = `<div class="empty">載入中…（Render 免費方案冷啟動可能需要 30–60 秒）</div>`;
+  try { $("#m").innerHTML = await [null, games, stats, log][cur](); }
+  catch(e){ $("#m").innerHTML = `<div class="empty">連不上後端（${e.message}）。確認 API 網址正確，並在 Render 上確認服務已啟動。</div>`; }
+  j("/budget").then(b => $("#bud").textContent = `API 額度剩餘 ${b.remaining}，今日已用 ${b.spent_today} / 每日可用約 ${b.daily_allowance}`).catch(()=>{});
+}
+load();
+</script>
+</body>
+</html>
