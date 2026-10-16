@@ -5,81 +5,86 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NBAENTRY - Pinnacle 盤口監控</title>
 <style>
-:root{--bg:#0b111c;--p:#141c2c;--p2:#1b2640;--ln:#27344f;--tx:#e6eaf4;--mu:#8795b3;--am:#f2a33a;--gr:#3fb67a;--rd:#e0605a}
+:root{--bg:#0c1323;--hd:#0e1628;--p:#141d36;--p2:#1a2544;--ln:#232f4e;--tx:#e8ecf6;--mu:#5f6f93;--bl:#2a5bea;--gr:#22e64a;--or:#ff9f1c;--rd:#ff4d5e}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 "Noto Sans TC",system-ui,sans-serif}
+.mono{font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace}
 button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible,.it:focus-visible{outline:2px solid var(--am);outline-offset:2px}
-header{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--ln)}
-.logo{font-size:22px;font-weight:800;letter-spacing:1px}.logo b{color:var(--am)}
-#st{color:var(--mu);font-size:13px}
-.hb{margin-left:auto;display:flex;gap:8px}
-.btn{background:var(--p);border:1px solid var(--ln);border-radius:6px;padding:5px 12px}
-.btn:hover{border-color:var(--am)}
-.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 18px}
-.kpi{background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:8px 12px}
-.kpi small{color:var(--mu);display:block}.kpi b{font-size:22px}
-.tabs{display:flex;gap:6px;padding:0 18px 10px;flex-wrap:wrap}
-.tabs .btn.on{background:var(--p2);border-color:var(--am)}
-.perf{margin:0 18px 12px;background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:10px 14px;display:flex;gap:18px;flex-wrap:wrap;align-items:center}
-.perf h3{margin:0;font-size:14px}.perf span{color:var(--mu)}.perf b{color:var(--tx)}
-.flt{display:flex;gap:6px;padding:0 18px 10px;flex-wrap:wrap;align-items:center}
-.flt .btn{padding:3px 12px;border-radius:999px;font-size:13px}.flt .btn.on{border-color:var(--am);color:var(--am)}
-.wrap{display:grid;grid-template-columns:340px 1fr;gap:12px;padding:0 18px 18px}
-.list{display:flex;flex-direction:column;gap:8px}
-.it{background:var(--p);border:1px solid var(--ln);border-left:4px solid var(--ln);border-radius:8px;padding:10px 12px;cursor:pointer}
-.it.s{border-left-color:var(--am)}.it.p{border-left-color:var(--gr)}.it.sel{background:var(--p2)}
-.it .t{font-weight:700}.it small{color:var(--mu)}
-.bar{height:4px;background:var(--ln);border-radius:2px;margin-top:6px}.bar i{display:block;height:100%;background:var(--am);border-radius:2px}
-.bd{font-size:12px;border-radius:4px;padding:0 6px;margin-left:4px;border:1px solid var(--am);color:var(--am)}
-.bd.g{border-color:var(--gr);color:var(--gr)}
-.det{background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:16px;min-height:300px}
-.det .hint{color:var(--mu);text-align:center;padding:60px 10px}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
-.cell{background:var(--p2);border-radius:8px;padding:8px 12px}.cell small{color:var(--mu);display:block}.cell .v{font-size:18px}
-.up{color:var(--am);font-weight:700}
-svg{width:100%;height:90px;background:var(--p2);border-radius:8px}
-.back{display:none;margin-bottom:10px}
-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
-th,td{padding:7px 8px;border-bottom:1px solid var(--ln);text-align:right}th:first-child,td:first-child{text-align:left}th{color:var(--mu);font-weight:500}
-.win{color:var(--gr)}.loss{color:var(--rd)}.push{color:var(--mu)}
-.box{margin:0 18px 18px;background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:14px 16px}
+button:focus-visible,.gc:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 22px;background:var(--hd);border-bottom:1px solid var(--ln)}
+.logo{font:800 30px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:5px}.logo b{color:var(--gr)}
+#st{color:var(--mu);font-size:13px;margin-top:6px}#st .ok{color:var(--gr);font-weight:700}
+.hr{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.kp{display:flex;background:#0a101e;border:1px solid var(--ln);border-radius:10px;overflow:hidden}
+.kp div{padding:6px 16px;text-align:center;border-left:1px solid var(--ln);min-width:62px}.kp div:first-child{border:0}
+.kp small{display:block;color:var(--mu);font-size:10px}.kp b{font-size:20px}
+.b{border-radius:8px;border:1px solid var(--ln);background:var(--p);padding:0 16px;font-weight:700}
+.b.gn{background:#0b2a14;border-color:#14612a;color:var(--gr)}.b.bl{background:var(--bl);border-color:var(--bl);color:#fff}
+.tabs{display:flex;align-items:center;gap:10px;padding:12px 22px;border-bottom:1px solid var(--ln)}
+.tab{background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:7px 18px;color:var(--mu);font-weight:600}
+.tab.on{background:var(--bl);border-color:var(--bl);color:#fff}
+#ago{margin-left:auto;font-size:12px}
+.main{display:grid;grid-template-columns:540px 1fr;gap:16px;padding:16px 12px 16px;min-height:calc(100vh - 160px)}
+.card{background:var(--p);border:1px solid var(--ln);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.ph{padding:14px 16px 10px;color:var(--mu);font-size:12px;display:flex;justify-content:space-between}
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 16px 14px;border-bottom:1px solid var(--ln)}
+.sg div{background:var(--p2);border:1px solid var(--ln);border-radius:8px;text-align:center;padding:8px 4px}
+.sg small{display:block;color:var(--mu);font-size:10px}.sg b{font-size:22px}.sg .s{font-size:13px}
+.pl{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;justify-content:flex-start}
+.pl button{background:var(--p2);border:1px solid var(--ln);border-radius:999px;padding:3px 14px;color:var(--mu);font-size:13px;font-weight:600}
+.pl button.on{border-color:var(--bl);color:#fff;background:#13224f}
+.gl{flex:1;overflow:auto;max-height:640px}
+.gc{padding:12px 16px;border-top:1px solid var(--ln);border-left:3px solid transparent;cursor:pointer}
+.gc.p{border-left-color:var(--gr)}.gc.s{border-left-color:var(--or)}.gc.sel{background:var(--p2)}
+.gc .r1{display:flex;justify-content:space-between;color:var(--mu);font-size:11px}
+.stars{letter-spacing:2px}.stars i{color:var(--or);font-style:normal}
+.stt{font-weight:700;font-size:13px;margin:4px 0 2px}.stt:before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:currentColor;margin-right:6px}
+.tm{font-weight:800;font-size:17px}.tm span{color:var(--mu);font-weight:400;font-size:13px;margin:0 6px}
+.r3{display:flex;align-items:center;gap:14px;margin-top:6px}
+.nm{font-size:22px;font-weight:700}.nm small{color:var(--mu);font-size:11px;font-weight:400;margin:0 4px}.nm em{font-style:normal;font-size:13px;color:var(--or)}
+.r3 .sp{margin-left:auto;display:flex;gap:8px}
+.mb{background:var(--p2);border:1px solid var(--ln);border-radius:8px;padding:2px 14px;color:var(--mu);font-size:13px}
+.pill{border-radius:999px;padding:2px 14px;font-weight:700;font-size:13px;border:1px solid}
+.gl.c .r3{display:none}
+.ft{padding:12px 16px;color:var(--mu);font-size:11px;border-top:1px solid var(--ln);line-height:1.8}
+.dp{padding:22px;min-height:560px}
+.hint{text-align:center;color:var(--mu);padding:130px 10px}.hint .ic{width:58px;height:58px;margin:0 auto 18px;border-radius:10px;background:var(--p2);display:grid;place-items:center;font-size:26px}
+.hint b{display:block;font-size:17px;color:#7d8db0;margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.cell{background:var(--p2);border:1px solid var(--ln);border-radius:10px;padding:10px 14px}.cell small{color:var(--mu);display:block}.cell .v{font-size:20px}
+.up{color:var(--or);font-weight:700}
+svg{width:100%;height:100px;background:var(--p2);border-radius:10px}
+.bd{display:inline-block;font-size:12px;border-radius:6px;padding:1px 10px;margin:2px 4px 2px 0;border:1px solid var(--or);color:var(--or)}.bd.g{border-color:var(--gr);color:var(--gr)}
+.box{margin:16px 12px;background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:16px 18px}
 .note{color:var(--mu);font-size:12px}
-footer{padding:14px 18px;color:var(--mu);font-size:12px;border-top:1px solid var(--ln)}
-dialog{background:var(--p);color:var(--tx);border:1px solid var(--ln);border-radius:10px;max-width:560px;width:92%}
-dialog::backdrop{background:#000a}dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
-@media(max-width:760px){.wrap{grid-template-columns:1fr}.strip{grid-template-columns:repeat(2,1fr)}.det{display:none}.wrap.d .list{display:none}.wrap.d .det{display:block}.back{display:inline-block}}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid var(--ln);text-align:right}th:first-child,td:first-child{text-align:left}th{color:var(--mu);font-weight:500}
+.win{color:var(--gr)}.loss{color:var(--rd)}.push{color:var(--mu)}
+dialog{background:var(--p);color:var(--tx);border:1px solid var(--ln);border-radius:12px;max-width:560px;width:92%}dialog::backdrop{background:#000b}
+dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
+.back{display:none;margin-bottom:12px}
+@media(max-width:860px){.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
 </style>
 </head>
 <body>
 <header>
-  <div class="logo">NBA<b>ENTRY</b></div>
-  <div id="st">ET --:--:-- · 連線中...</div>
-  <div class="hb"><button class="btn" onclick="gl.showModal()">📖 術語</button><button class="btn" onclick="load()">↺更新盤口</button></div>
+  <div><div class="logo">NBA<b>ENTRY</b></div><div id="st" class="mono">ET --:--:-- · 連線中...</div></div>
+  <div class="hr">
+    <div class="kp mono"><div><small>蒸汽</small><b id="k1" style="color:var(--or)">0</b></div><div><small>可進場</small><b id="k2" style="color:var(--gr)">0</b></div><div><small>信號</small><b id="k3" style="color:#3d8bff">0</b></div><div><small>蒸汽勝率</small><b id="k4">—</b><small id="k5"></small></div></div>
+    <button class="b gn" onclick="parlay()">🎯 過關分析</button><button class="b" onclick="gl.showModal()" aria-label="術語說明">?</button><button class="b bl" onclick="load()">↺ 更新盤口</button>
+  </div>
 </header>
-<div class="strip">
-  <div class="kpi"><small>蒸汽</small><b id="k1">0</b></div>
-  <div class="kpi"><small>可進場</small><b id="k2">0</b></div>
-  <div class="kpi"><small>信號</small><b id="k3">0</b></div>
-  <div class="kpi"><small>蒸汽勝率</small><b id="k4">—</b></div>
-</div>
-<div class="tabs">
-  <button class="btn on" data-t="1">📡 今日盤口</button>
-  <button class="btn" data-t="2">📊 昨日結算</button>
-  <button class="btn" data-t="3">🌙 賽前總結</button>
-</div>
-<div class="perf" id="perf"></div>
+<div class="tabs"><button class="tab on" data-t="1">📡 今日盤口</button><button class="tab" data-t="2">📊 昨日結算</button><button class="tab" data-t="3">🌙 賽前總結</button><span id="ago"></span></div>
 <div id="v"></div>
-<footer>📡 資料來源：Pinnacle（銳盤）· The Odds API<br>🔄 更新頻率：依距開賽時間自動調整（越接近越頻繁）<br>⚠ 僅供參考，不構成投注建議</footer>
 
-<dialog id="gl"><form method="dialog"><button class="btn" style="float:right">✕</button></form>
-<h3>📖 術語說明手冊</h3><dl>
+<dialog id="pz"><form method="dialog"><button class="b" style="float:right">✕</button></form><h3 style="margin-top:0">⚡ 過關建議</h3><div id="pzb"></div></dialog>
+<dialog id="gl"><form method="dialog"><button class="b" style="float:right">✕</button></form>
+<h3 style="margin-top:0">📖 術語說明手冊</h3><dl>
 <dt>初盤 / 現盤 / 收盤</dt><dd>系統第一次抓到的盤口 / 最新一次 / 開賽前最後一次。</dd>
 <dt>🔥 蒸汽</dt><dd>讓分移動 ≥ 1.0 或總分移動 ≥ 1.5，代表資金明顯流向某一邊。</dd>
 <dt>⚡ 推薦</dt><dd>讓分移動 ≥ 2.0 或總分移動 ≥ 3.0 的強訊號。</dd>
 <dt>可進場（鎖定）</dt><dd>開賽前 120～45 分鐘內達蒸汽門檻，系統鎖定當下盤口作為 pick，之後不再更改。</dd>
+<dt>ROI</dt><dd>以 Pinnacle 賠率計算的投報率（每注 1 單位，走水不計）。</dd>
 <dt>CLV</dt><dd>鎖定盤相對收盤盤的點數優勢，正值代表買到比收盤更好的數字。</dd>
-<dt>走水</dt><dd>結果剛好等於盤口，不計入勝率。</dd>
 <dt>Wilson 下界</dt><dd>勝率 95% 信賴區間下緣，需 ≥ 30 場且高於 52.4% 才算有 edge。</dd></dl></dialog>
 
 <script>
@@ -88,89 +93,100 @@ const TH={s:1.0,t:1.5,sr:2.0,tr:3.0};
 const $=s=>document.querySelector(s);
 const j=p=>fetch(API+p).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()});
 const f=n=>n==null?"–":(n>0?"+":"")+n;
-const SD={home:"主隊",away:"客隊",over:"大分",under:"小分"},MK={spread:"讓分",total:"大小分"};
-const RS={win:"贏",loss:"輸",push:"走水"};
-const et=(t,o={})=>new Date(t).toLocaleString("zh-TW",{timeZone:"America/New_York",hour12:false,...o});
-const tw=t=>new Date(t).toLocaleString("zh-TW",{timeZone:"Asia/Taipei",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+const SD={home:"主隊",away:"客隊",over:"大分",under:"小分"},MK={spread:"讓分",total:"大小分"},RS={win:"贏",loss:"輸",push:"走水"};
+const et=(t,o)=>new Date(t).toLocaleString("en-US",{timeZone:"America/New_York",...o});
 const day=t=>new Date(t).toLocaleDateString("en-CA",{timeZone:"America/New_York"});
-let G=[],P=[],S=null,tab=1,flt="all",byMag=true,sel=null;
+let G=[],P=[],S=null,tab=1,flt="all",byMag=true,cmp=false,sel=null,last=0,conn="連線中...";
 
-setInterval(()=>{const e=$("#st").dataset.e||"";$("#st").textContent=`ET ${new Date().toLocaleTimeString("en-GB",{timeZone:"America/New_York"})} · ${e}`},1000);
-document.querySelectorAll(".tabs .btn").forEach(b=>b.onclick=()=>{tab=+b.dataset.t;document.querySelectorAll(".tabs .btn").forEach(x=>x.classList.toggle("on",x===b));render()});
+setInterval(()=>{
+  $("#st").innerHTML=`ET ${new Date().toLocaleTimeString("en-GB",{timeZone:"America/New_York"})} · 場次 ${G.length} · 快照 ${G.reduce((a,g)=>a+g.n_snaps,0)} · <span class="${conn==="已連線"?"ok":""}">● ${conn}</span>`;
+  const m=Math.round((Date.now()-last)/6e4);$("#ago").textContent=last?(m<1?"剛剛更新":m<60?m+"分鐘前更新":Math.floor(m/60)+"小時前更新"):"";$("#ago").style.color=m>10?"var(--rd)":"var(--gr)";
+},1000);
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=+b.dataset.t;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));render()});
 
 function info(g){
   const l=g.latest||{},dS=l.spread!=null&&g.open_spread!=null?+(l.spread-g.open_spread).toFixed(1):0,dT=l.total!=null&&g.open_total!=null?+(l.total-g.open_total).toFixed(1):0;
-  const mag=Math.max(Math.abs(dS)/TH.s,Math.abs(dT)/TH.t);
-  const lv=Math.abs(dS)>=TH.sr||Math.abs(dT)>=TH.tr?2:mag>=1?1:0;
-  return{dS,dT,mag,lv,l,hrs:(new Date(g.commence)-Date.now())/3.6e6,pk:g.picks.some(p=>!p.settled)};
+  const mag=Math.max(Math.abs(dS)/TH.s,Math.abs(dT)/TH.t),lv=Math.abs(dS)>=TH.sr||Math.abs(dT)>=TH.tr?2:mag>=1?1:0;
+  return{dS,dT,mag,lv,l,hrs:(new Date(g.commence)-Date.now())/36e5,pk:g.picks.some(p=>!p.settled)};
 }
-const dir=(i)=>[i.dS?`讓分→${i.dS<0?"主隊":"客隊"}`:"",i.dT?`總分→${i.dT>0?"大分":"小分"}`:""].filter(Boolean).join(" · ");
+const dir=i=>[i.dS?`讓分→${i.dS<0?"主隊":"客隊"}`:"",i.dT?`總分→${i.dT>0?"大分":"小分"}`:""].filter(Boolean).join(" · ");
+const isRec=p=>Math.abs(p.delta||0)>=(p.market==="spread"?TH.sr:TH.tr);
 
 async function load(){
-  $("#st").dataset.e="更新中...";
-  try{
-    [G,P,S]=await Promise.all([j("/games"),j("/picks?limit=500"),j("/stats")]);
-    const b=await j("/budget").catch(()=>null);
-    $("#st").dataset.e=`場次 ${G.length} · 快照 ${G.reduce((a,g)=>a+g.n_snaps,0)}`+(b?` · 額度 ${b.remaining}`:"");
-  }catch(e){$("#st").dataset.e="離線";$("#v").innerHTML=`<div class="box">連不上後端（${e.message}）。Render 免費方案冷啟動需 30–60 秒，稍後按 ↺更新盤口。</div>`;return}
+  conn="更新中...";
+  try{[G,P,S]=await Promise.all([j("/games"),j("/picks?limit=500"),j("/stats")]);conn="已連線";last=Date.now()}
+  catch(e){conn="離線";$("#v").innerHTML=`<div class="box">連不上後端（${e.message}）。Render 免費方案冷啟動需 30–60 秒，稍後按 ↺ 更新盤口。</div>`;return}
   const I=G.map(info);
-  $("#k1").textContent=I.filter(i=>i.lv).length;
-  $("#k2").textContent=I.filter(i=>i.pk).length;
-  $("#k3").textContent=G.reduce((a,g)=>a+g.picks.length,0);
-  $("#k4").textContent=S.all.n?(S.all.win_rate*100).toFixed(0)+"%":"—";
-  const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),w=r.filter(p=>p.result==="win").length,l=r.filter(p=>p.result==="loss").length,u=r.length-w-l;
-  const c=r.filter(p=>p.clv_pts!=null),ac=c.length?c.reduce((a,p)=>a+p.clv_pts,0)/c.length:null;
-  $("#perf").innerHTML=`<h3>📊 歷史績效（蒸汽信號）<span>近30天</span></h3><span>勝 <b>${w}</b> 負 <b>${l}</b> 走水 <b>${u}</b></span><span>勝率 <b>${w+l?(w/(w+l)*100).toFixed(1)+"%":"—"}</b></span><span>平均 CLV <b>${ac==null?"—":f(+ac.toFixed(2))}</b></span><span>Wilson 下界 <b>${(S.all.wilson_lb*100).toFixed(1)}%</b>（累計 ${S.all.n} 場，${S.all.edge_claim?"通過":"樣本/門檻未達"}）</span>`;
+  $("#k1").textContent=I.filter(i=>i.lv).length;$("#k2").textContent=I.filter(i=>i.pk).length;$("#k3").textContent=G.reduce((a,g)=>a+g.picks.length,0);
+  $("#k4").textContent=S.all.n?Math.round(S.all.win_rate*100)+"%":"—";$("#k5").textContent=S.all.n?S.all.n+"場":"";
   render();
 }
+function render(){$("#v").innerHTML="";[null,today,settled,pre][tab]()}
 
-function render(){$("#v").innerHTML="";$("#perf").style.display=tab===1?"flex":"none";[null,today,settled,pre][tab]()}
+function perf(){
+  const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),W=r.filter(p=>p.result==="win"),L=r.filter(p=>p.result==="loss");
+  const n=W.length+L.length,roi=n?(W.reduce((a,p)=>a+(p.price_at_pick-1),0)-L.length)/n*100:null;
+  const rc=r.filter(isRec),rw=rc.filter(p=>p.result==="win").length,rn=rc.filter(p=>p.result!=="push").length;
+  return`<div class="ph"><span>📊 歷史績效（蒸汽信號）</span><span>近30天</span></div><div class="sg mono">
+  <div><small>近30天</small><b class="s">${W.length}W ${L.length}L</b></div>
+  <div><small>勝率</small><b style="color:var(--gr)">${n?Math.round(W.length/n*100)+"%":"—"}</b></div>
+  <div><small>ROI</small><b style="color:${roi>=0?"var(--gr)":"var(--rd)"}">${roi==null?"—":(roi>0?"+":"")+roi.toFixed(1)+"%"}</b></div>
+  <div><small>推薦勝率</small><b style="color:${rn&&rw/rn>=.5?"var(--gr)":"var(--rd)"}">${rn?Math.round(rw/rn*100)+"%":"—"}</b></div></div>`;
+}
+
+function stars(m){const n=Math.min(5,Math.round(m*2.5));return`<span class="stars">${"★".repeat(n).replace(/★/g,"<i>★</i>")}${"☆".repeat(5-n)}</span>`}
+function status(i){return i.hrs<=0?["進行中","var(--rd)"]:i.pk?["可進場","var(--gr)"]:i.lv?[i.lv===2?"推薦":"蒸汽","var(--or)"]:["等待中","var(--mu)"]}
 
 function today(){
-  const F=[["all","全部"],["rec","推薦"],["steam","蒸汽"],["spread","讓分"],["total","大小分"],["6h","6hr內"]];
-  let rows=G.map(g=>({g,i:info(g)})).filter(({i})=>({all:1,rec:i.lv===2,steam:i.lv>=1,spread:Math.abs(i.dS)>=TH.s,total:Math.abs(i.dT)>=TH.t,"6h":i.hrs<=6&&i.hrs>0}[flt]));
-  rows.sort((a,b)=>byMag?b.i.mag-a.i.mag:new Date(a.g.commence)-new Date(b.g.commence));
-  $("#v").innerHTML=`<div class="flt">${F.map(([k,n])=>`<button class="btn ${flt===k?"on":""}" onclick="flt='${k}';render()">${n}</button>`).join("")}<button class="btn" onclick="byMag=!byMag;render()">${byMag?"🔥 依動能":"🕒 依開賽"}</button></div>
-  <div class="wrap ${sel?"d":""}" id="w"><div class="list">${rows.map(({g,i})=>`<div class="it ${i.pk?"p":i.lv?"s":""} ${sel===g.id?"sel":""}" tabindex="0" onclick="pick('${g.id}')" onkeydown="if(event.key==='Enter')pick('${g.id}')">
-  <div class="t">${g.away} @ ${g.home}${i.lv===2?'<span class="bd">⚡推薦</span>':i.lv?'<span class="bd">🔥蒸汽</span>':""}${i.pk?'<span class="bd g">可進場</span>':""}</div>
-  <small>ET ${et(g.commence,{hour:"2-digit",minute:"2-digit"})} · 台灣 ${tw(g.commence)} · ${g.n_snaps} 快照</small>
-  <div class="bar"><i style="width:${Math.min(i.mag,2)/2*100}%"></i></div></div>`).join("")||'<div class="note" style="padding:20px">沒有符合條件的場次。</div>'}</div>
-  <div class="det" id="d"><div class="hint">📊 選擇一場賽事，查看盤口波動與蒸汽數據<br><small>左側有 🔥 進度條代表資金正在流動 · 綠色邊框 = 可進場 · 黃色 = 蒸汽 · 暗色 = 冷卻中</small></div></div></div>`;
+  const F=[["all","全部"],["rec","⚡ 推薦"],["steam","🔥 蒸汽"],["spread","讓分"],["total","大小分"],["6h","⏱ 6hr內"]];
+  const rows=G.map(g=>({g,i:info(g)})).filter(({i})=>({all:1,rec:i.lv===2,steam:i.lv>=1,spread:Math.abs(i.dS)>=TH.s,total:Math.abs(i.dT)>=TH.t,"6h":i.hrs<=6&&i.hrs>0}[flt]))
+    .sort((a,b)=>byMag?b.i.mag-a.i.mag:new Date(a.g.commence)-new Date(b.g.commence));
+  $("#v").innerHTML=`<div class="main ${sel?"d":""}" id="w"><div class="card">${perf()}
+  <div class="pl" style="border-bottom:0">${F.map(([k,n])=>`<button class="${flt===k?"on":""}" onclick="flt='${k}';render()">${n}</button>`).join("")}</div>
+  <div class="pl" style="padding-top:0;justify-content:flex-end"><button onclick="byMag=!byMag;render()">${byMag?"🔥 排序":"🕒 排序"}</button><button onclick="cmp=!cmp;render()" aria-label="精簡檢視">▤</button></div>
+  <div class="gl ${cmp?"c":""}">${rows.map(({g,i})=>{const[t,c]=status(i);return`<div class="gc ${i.pk?"p":i.lv?"s":""} ${sel===g.id?"sel":""}" tabindex="0" onclick="pick('${g.id}')" onkeydown="if(event.key==='Enter')pick('${g.id}')">
+  <div class="r1 mono"><span>${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"}).replace(",","")}</span>${stars(i.mag)}</div>
+  <div class="stt" style="color:${c}">${t}</div><div class="tm">${g.away}<span>VS</span>${g.home}</div>
+  <div class="r3 mono"><div class="nm">${i.l.spread??"–"}<small>讓分</small>${i.dS?`<em>${f(i.dS)}</em>`:""}</div><div class="nm">${i.l.total??"–"}<small>總分</small>${i.dT?`<em>${f(i.dT)}</em>`:""}</div>
+  <div class="sp"><button class="mb" onclick="event.stopPropagation();cp('${g.id}')">複製</button><span class="pill" style="color:${c};border-color:${c}">${t}</span></div></div></div>`}).join("")||'<div class="note" style="padding:30px;text-align:center">沒有符合條件的場次</div>'}</div>
+  <div class="ft">📡 資料來源：Pinnacle（銳盤）· The Odds API<br>🔄 更新頻率：依距開賽時間自動調整<br>⚠ 僅供參考，不構成投注建議</div></div>
+  <div class="card dp" id="d"><div class="hint"><div class="ic">📊</div><b>選擇一場賽事，查看盤口波動與蒸汽數據</b>← 左側有 🔥 進度條的場次代表資金正在流動<br><span style="color:var(--gr)">綠色邊框</span> = 可進場 · <span style="color:var(--or)">黃色</span> = 蒸汽 · 暗色 = 冷卻中</div></div></div>`;
   if(sel)pick(sel,1);
 }
 
+function cp(id){const g=G.find(x=>x.id===id),i=info(g);navigator.clipboard.writeText(`${g.away} @ ${g.home} 讓分${f(g.open_spread)}→${f(i.l.spread)} 總分${g.open_total}→${i.l.total} ${dir(i)}`)}
 function spark(s,k){
   const v=s.map(x=>x[k]).filter(x=>x!=null);if(v.length<2)return'<div class="note">快照不足（至少 2 筆）</div>';
   const lo=Math.min(...v),r=Math.max(...v)-lo||1;
-  return`<svg viewBox="0 0 400 90" role="img" aria-label="${k} 走勢"><polyline fill="none" stroke="#f2a33a" stroke-width="2" points="${v.map((x,i)=>`${10+i*380/(v.length-1)},${80-(x-lo)/r*70}`).join(" ")}"/></svg>`;
+  return`<svg viewBox="0 0 400 100" role="img" aria-label="${k} 走勢"><polyline fill="none" stroke="#ff9f1c" stroke-width="2" points="${v.map((x,i)=>`${10+i*380/(v.length-1)},${88-(x-lo)/r*76}`).join(" ")}"/></svg>`;
 }
-
 async function pick(id,keep){
   sel=id;const g=G.find(x=>x.id===id);if(!g)return;const i=info(g);
-  if(!keep){document.querySelectorAll(".it").forEach(e=>e.classList.remove("sel"));$("#w").classList.add("d")}
+  if(!keep)$("#w").classList.add("d");
   const s=await j("/game/"+id).catch(()=>[]);
-  $("#d").innerHTML=`<button class="btn back" onclick="sel=null;render()">← 返回場次列表</button>
-  <h3 style="margin:0">${g.away} @ ${g.home}</h3><div class="note">${dir(i)||"盤口尚無明顯移動"}</div>
-  <div class="g2"><div class="cell"><small>讓分（主）初盤 → 現盤</small><span class="v">${f(g.open_spread)} → ${f(i.l.spread)}</span> <span class="up">${i.dS?(i.dS>0?"▲":"▼")+Math.abs(i.dS):""}</span></div>
+  $("#d").innerHTML=`<div><button class="b back" onclick="sel=null;render()" style="height:34px">← 返回場次列表</button>
+  <h2 style="margin:0">${g.away} <span style="color:var(--mu)">@</span> ${g.home}</h2><div class="note">${dir(i)||"盤口尚無明顯移動"} · ${g.n_snaps} 筆快照</div>
+  <div class="g2 mono"><div class="cell"><small>讓分（主）初盤 → 現盤</small><span class="v">${f(g.open_spread)} → ${f(i.l.spread)}</span> <span class="up">${i.dS?(i.dS>0?"▲":"▼")+Math.abs(i.dS):""}</span></div>
   <div class="cell"><small>大小分 初盤 → 現盤</small><span class="v">${g.open_total??"–"} → ${i.l.total??"–"}</span> <span class="up">${i.dT?(i.dT>0?"▲":"▼")+Math.abs(i.dT):""}</span></div></div>
-  <div class="note">讓分走勢</div>${spark(s,"spread")}<div class="note" style="margin-top:8px">大小分走勢</div>${spark(s,"total")}
-  <div style="margin-top:10px">${g.picks.map(p=>`<span class="bd ${p.result==="win"?"g":""}">${MK[p.market]} ${SD[p.side]} @${p.line_at_pick}${p.settled?" · "+RS[p.result]:" · 待結算"}</span>`).join("")||'<span class="note">尚無鎖定 pick（開賽前 120～45 分鐘內達蒸汽門檻才鎖定）</span>'}</div>`;
+  <div class="note">讓分走勢</div>${spark(s,"spread")}<div class="note" style="margin-top:10px">大小分走勢</div>${spark(s,"total")}
+  <div style="margin-top:14px">${g.picks.map(p=>`<span class="bd ${p.result==="win"?"g":""}">${MK[p.market]} ${SD[p.side]} @${p.line_at_pick}${p.settled?" · "+RS[p.result]:" · 待結算"}</span>`).join("")||'<span class="note">尚無鎖定 pick（開賽前 120～45 分鐘內達蒸汽門檻才鎖定）</span>'}</div></div>`;
+}
+
+function parlay(){
+  const r=G.map(g=>({g,i:info(g)})).filter(({i})=>i.lv&&i.hrs>0).sort((a,b)=>b.i.mag-a.i.mag).slice(0,5);
+  $("#pzb").innerHTML=`<div class="note" style="margin-bottom:10px">推薦場次優先 · 建議快照 ≥ 5 筆再參考</div>`+(r.map(({g,i})=>`<div style="padding:8px 0;border-top:1px solid var(--ln)"><b>${g.away} @ ${g.home}</b> ${i.lv===2?"⚡":"🔥"}<div class="note">${dir(i)} · ${g.n_snaps} 快照</div></div>`).join("")||'<div class="note">目前沒有達蒸汽門檻的場次。</div>');
+  pz.showModal();
 }
 
 function settled(){
   const y=day(Date.now()-864e5),r=P.filter(p=>p.settled&&day(p.commence)===y);
-  $("#v").innerHTML=`<div class="box"><h3 style="margin-top:0">昨日結算記錄 <span class="note">（ET ${y}）</span></h3><div class="note" style="margin-bottom:8px">🔥 蒸汽 = 讓分 ≥ 1.0 / 總分 ≥ 1.5 · ⚡ 推薦 = 讓分 ≥ 2.0 / 總分 ≥ 3.0 · 自動結算</div>
-  <div style="overflow-x:auto"><table><tr><th>比賽</th><th>盤口</th><th>開盤</th><th>鎖定</th><th>收盤</th><th>方向</th><th>比分</th><th>結果</th></tr>
+  $("#v").innerHTML=`<div class="box"><h3 style="margin-top:0">昨日結算記錄 <span class="note">（ET ${y}）</span></h3><div class="note" style="margin-bottom:10px">🔥 蒸汽 = 讓分 ≥ 1.0 / 總分 ≥ 1.5 · ⚡ 推薦 = 讓分 ≥ 2.0 / 總分 ≥ 3.0 · 自動結算</div><div style="overflow-x:auto"><table class="mono"><tr><th>比賽</th><th>盤口</th><th>開盤</th><th>鎖定</th><th>收盤</th><th>方向</th><th>比分</th><th>結果</th></tr>
   ${r.map(p=>`<tr><td>${p.away}@${p.home}</td><td>${MK[p.market]}</td><td>${p.open_line}</td><td>${p.line_at_pick}</td><td>${p.close_line??"–"}</td><td>${SD[p.side]}</td><td>${p.away_score}-${p.home_score}</td><td class="${p.result}">${RS[p.result]}</td></tr>`).join("")||'<tr><td colspan="8" style="text-align:center;color:var(--mu)">昨日沒有已結算的 pick</td></tr>'}</table></div></div>`;
 }
-
 function pre(){
   const d=day(Date.now()),r=G.map(g=>({g,i:info(g)})).filter(({g,i})=>day(g.commence)===d&&(i.lv||g.picks.length));
-  const txt=r.map(({g,i})=>`${g.away}@${g.home} ET${et(g.commence,{hour:"2-digit",minute:"2-digit"})} ${dir(i)} ${g.picks.map(p=>`[${MK[p.market]}${SD[p.side]}@${p.line_at_pick}]`).join("")}`).join("\n");
-  window._txt=txt;
-  $("#v").innerHTML=`<div class="box"><h3 style="margin-top:0">🌙 賽前總結</h3><div class="note">開賽前 2 小時～45 分鐘查看最準確 · 針對今日（ET）場次產生</div>
-  <div style="margin:10px 0"><button class="btn" onclick="navigator.clipboard.writeText(window._txt)">📋 複製清單</button> <button class="btn" onclick="load()">↺ 重新整理</button></div>
-  <pre style="white-space:pre-wrap;margin:0;color:var(--tx)">${txt||"今日尚無蒸汽或已鎖定的場次"}</pre></div>`;
+  window._t=r.map(({g,i})=>`${g.away}@${g.home} ${dir(i)} ${g.picks.map(p=>`[${MK[p.market]}${SD[p.side]}@${p.line_at_pick}]`).join("")}`).join("\n");
+  $("#v").innerHTML=`<div class="box"><h3 style="margin-top:0">🌙 賽前總結</h3><div class="note">開賽前 2 小時～45 分鐘查看最準確 · 針對今日（ET）場次產生</div><div style="margin:12px 0"><button class="b" style="height:34px" onclick="navigator.clipboard.writeText(window._t)">📋 複製清單</button> <button class="b" style="height:34px" onclick="load()">↺ 重新整理</button></div><pre class="mono" style="white-space:pre-wrap;margin:0">${window._t||"今日尚無蒸汽或已鎖定的場次"}</pre></div>`;
 }
 load();setInterval(load,120000);
 </script>
