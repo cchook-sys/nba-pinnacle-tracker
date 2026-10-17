@@ -24,7 +24,7 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 .tab{background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:7px 18px;color:var(--mu);font-weight:600}
 .tab.on{background:var(--bl);border-color:var(--bl);color:#fff}
 #ago{margin-left:auto;font-size:12px}
-.main{display:grid;grid-template-columns:540px 1fr;gap:16px;padding:16px 12px 16px;min-height:calc(100vh - 160px)}
+.main{zoom:.67;display:grid;grid-template-columns:540px 1fr;gap:16px;padding:16px 12px 16px;min-height:calc((100vh - 160px)/.67)}
 .card{background:var(--p);border:1px solid var(--ln);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
 .ph{padding:14px 16px 10px;color:var(--mu);font-size:12px;display:flex;justify-content:space-between}
 .sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 16px 14px;border-bottom:1px solid var(--ln)}
@@ -63,14 +63,14 @@ dialog{background:var(--p);color:var(--tx);border:1px solid var(--ln);border-rad
 dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 .back{display:none;margin-bottom:12px}
 .ch{height:auto;display:block}
-.dp{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow:auto}
+.dp{position:sticky;top:12px;align-self:start;max-height:calc((100vh - 24px)/.67);overflow:auto}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
 .cell .sub{display:block;color:var(--mu);font-size:11px;margin-top:2px}
 .sec{margin:18px 0 6px;color:var(--mu);font-size:12px;font-weight:700}
 .tb{max-height:300px;overflow:auto;border:1px solid var(--ln);border-radius:10px}.tb table{font-size:12px}.tb th{position:sticky;top:0;background:var(--p2)}
 .pr{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 12px;background:var(--p2);border:1px solid var(--ln);border-radius:10px;margin-bottom:6px;font-size:13px}
 .stp{border-radius:999px;padding:1px 12px;font-weight:700;font-size:12px;border:1px solid;margin-left:10px;vertical-align:middle}
-@media(max-width:860px){.g4{grid-template-columns:repeat(2,1fr)}.dp{position:static;max-height:none}.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
+@media(max-width:860px){.main{zoom:1;min-height:0}.g4{grid-template-columns:repeat(2,1fr)}.dp{position:static;max-height:none}.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
 </style>
 </head>
 <body>
