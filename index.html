@@ -63,7 +63,7 @@ dialog{background:var(--p);color:var(--tx);border:1px solid var(--ln);border-rad
 dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 .back{display:none;margin-bottom:12px}
 .ch{height:auto;display:block}
-.dp{align-self:start}
+.dp{align-self:start;position:sticky;top:12px;max-height:calc((100vh - 24px)/.8);overflow:auto}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
 .cell .sub{display:block;color:var(--mu);font-size:11px;margin-top:2px}
 .sec{margin:18px 0 6px;color:var(--mu);font-size:12px;font-weight:700}
@@ -217,7 +217,7 @@ function timeline(s){
 }
 async function pick(id,keep){
   sel=id;const g=G.find(x=>x.id===id);if(!g)return;const i=info(g);
-  if(!keep)$("#w").classList.add("d");
+  if(!keep){$("#w").classList.add("d");if(matchMedia("(max-width:860px)").matches)scrollTo(0,0)}
   const s=SN[id]||(SN[id]=await j("/game/"+id).catch(()=>null)),[t,c]=status(i),l=i.l,F=s&&s[0]||{},age=l.ts?(Date.now()-new Date(l.ts))/6e4:null;
   const rng=k=>{const v=q_(s,k).map(x=>x[k]);return v.length?`高 ${Math.max(...v)} / 低 ${Math.min(...v)}`:"–"};
   const pkS=q_(s,"spread").reduce((a,x)=>Math.max(a,Math.abs(x.spread-g.open_spread)),0),pkT=q_(s,"total").reduce((a,x)=>Math.max(a,Math.abs(x.total-g.open_total)),0);
@@ -248,6 +248,7 @@ async function pick(id,keep){
   <h2 style="margin:0">${g.away} <span style="color:var(--mu)">@</span> ${g.home}<span class="stp" style="color:${c}">${t}</span></h2>
   <div class="note">開賽 台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}（ET ${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}）· ${g.n_snaps} 筆快照${age!=null&&age>180&&i.hrs>0?' · <b style="color:var(--rd)">⚠ 最新快照已超過 3 小時，資料可能過期</b>':""}</div>
   <div class="cap" role="tablist">${TB.map(([k,n])=>`<button role="tab" aria-selected="${dtab===k}" class="${dtab===k?"on":""}" onclick="dtab='${k}';pick('${id}',1)">${n}</button>`).join("")}</div>${body[dtab]()}</div>`;
+  if(!keep)$("#d").scrollTop=0;
 }
 
 function parlay(){
