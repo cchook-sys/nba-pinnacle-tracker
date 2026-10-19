@@ -24,7 +24,7 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 .tab{background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:7px 18px;color:var(--mu);font-weight:600}
 .tab.on{background:var(--bl);border-color:var(--bl);color:#fff}
 #ago{margin-left:auto;font-size:12px}
-.main{zoom:.67;display:grid;grid-template-columns:540px 1fr;gap:16px;padding:16px 12px 16px;min-height:calc((100vh - 160px)/.67)}
+.main{zoom:.8;display:grid;grid-template-columns:540px 1fr;gap:16px;padding:16px 12px 16px;min-height:calc((100vh - 160px)/.8)}
 .card{background:var(--p);border:1px solid var(--ln);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
 .ph{padding:14px 16px 10px;color:var(--mu);font-size:12px;display:flex;justify-content:space-between}
 .sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 16px 14px;border-bottom:1px solid var(--ln)}
@@ -33,7 +33,7 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:s
 .pl{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;justify-content:flex-start}
 .pl button{background:var(--p2);border:1px solid var(--ln);border-radius:999px;padding:3px 14px;color:var(--mu);font-size:13px;font-weight:600}
 .pl button.on{border-color:var(--bl);color:#fff;background:#13224f}
-.gl{flex:1;overflow:auto;max-height:640px}
+.gl{flex:1}
 .gc{padding:12px 16px;border-top:1px solid var(--ln);border-left:3px solid transparent;cursor:pointer}
 .gc.p{border-left-color:var(--gr)}.gc.s{border-left-color:var(--or)}.gc.sel{background:var(--p2)}
 .gc .r1{display:flex;justify-content:space-between;color:var(--mu);font-size:11px}
@@ -63,13 +63,16 @@ dialog{background:var(--p);color:var(--tx);border:1px solid var(--ln);border-rad
 dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 .back{display:none;margin-bottom:12px}
 .ch{height:auto;display:block}
-.dp{position:sticky;top:12px;align-self:start;max-height:calc((100vh - 24px)/.67);overflow:auto}
+.dp{align-self:start}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
 .cell .sub{display:block;color:var(--mu);font-size:11px;margin-top:2px}
 .sec{margin:18px 0 6px;color:var(--mu);font-size:12px;font-weight:700}
 .tb{max-height:300px;overflow:auto;border:1px solid var(--ln);border-radius:10px}.tb table{font-size:12px}.tb th{position:sticky;top:0;background:var(--p2)}
 .pr{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 12px;background:var(--p2);border:1px solid var(--ln);border-radius:10px;margin-bottom:6px;font-size:13px}
 .stp{border-radius:999px;padding:1px 12px;font-weight:700;font-size:12px;border:1px solid;margin-left:10px;vertical-align:middle}
+.tm{font-size:20px}.nm{font-size:26px}.r1{font-size:12px}.stt{font-size:14px}.note{font-size:13px}.sg{grid-template-columns:repeat(3,1fr)}.sg small{font-size:12px}.pl button{font-size:14px}.cell small{font-size:12px}.cell .v{font-size:22px}
+.rules td:first-child{color:var(--mu);white-space:nowrap;width:110px}.rules td{text-align:left;font-size:13px;vertical-align:top}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0a101e;border:1px solid var(--gr);padding:8px 18px;border-radius:8px;opacity:0;transition:.2s;pointer-events:none;z-index:9}.toast.on{opacity:1}
 @media(max-width:860px){.main{zoom:1;min-height:0}.g4{grid-template-columns:repeat(2,1fr)}.dp{position:static;max-height:none}.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
 </style>
 </head>
@@ -77,12 +80,12 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 <header>
   <div><div class="logo">NBA<b>ENTRY</b></div><div id="st" class="mono">ET --:--:-- · 連線中...</div></div>
   <div class="hr">
-    <div class="kp mono"><div><small>蒸汽</small><b id="k1" style="color:var(--or)">0</b></div><div><small>可進場</small><b id="k2" style="color:var(--gr)">0</b></div><div><small>信號</small><b id="k3" style="color:#3d8bff">0</b></div><div><small>蒸汽勝率</small><b id="k4">—</b><small id="k5"></small></div></div>
-    <button class="b gn" onclick="parlay()">🎯 過關分析</button><button class="b" onclick="gl.showModal()" aria-label="術語說明">?</button><button class="b bl" onclick="load()">↺ 更新盤口</button>
+    <div class="kp mono"><div title="蒸汽：讓分移動 ≥ 1.0 或總分移動 ≥ 1.5 的場次數（相對初盤，僅未開賽）"><small>蒸汽</small><b id="k1" style="color:var(--or)">0</b></div><div title="可進場：已在鎖定窗口內達門檻並鎖定、尚未結算的 pick 場次數"><small>可進場</small><b id="k2" style="color:var(--gr)">0</b></div><div title="信號：目前所有場次已鎖定的 pick 總數"><small>信號</small><b id="k3" style="color:#3d8bff">0</b></div><div title="蒸汽勝率：累計已結算 pick 的命中率（排除走水），需看右下場數"><small>蒸汽勝率</small><b id="k4">—</b><small id="k5"></small></div></div>
+    <button class="b gn" onclick="parlay()">🎯 過關分析</button><button class="b" onclick="gl.showModal()" aria-label="術語說明">?</button><button class="b bl" id="rb" onclick="load()">↺ 更新盤口</button>
   </div>
 </header>
 <div class="tabs"><button class="tab on" data-t="1">📡 今日盤口</button><button class="tab" data-t="2">📊 昨日結算</button><button class="tab" data-t="3">🌙 賽前總結</button><span id="ago"></span></div>
-<div id="v"></div>
+<div id="v"></div><div id="toast" class="toast" role="status"></div>
 
 <dialog id="pz"><form method="dialog"><button class="b" style="float:right">✕</button></form><h3 style="margin-top:0">⚡ 過關建議</h3><div id="pzb"></div></dialog>
 <dialog id="gl"><form method="dialog"><button class="b" style="float:right">✕</button></form>
@@ -91,7 +94,7 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 <dt>🔥 蒸汽</dt><dd>讓分移動 ≥ 1.0 或總分移動 ≥ 1.5，代表資金明顯流向某一邊。</dd>
 <dt>⚡ 推薦</dt><dd>讓分移動 ≥ 2.0 或總分移動 ≥ 3.0 的強訊號。</dd>
 <dt>可進場（鎖定）</dt><dd>開賽前 120～45 分鐘內達蒸汽門檻，系統鎖定當下盤口作為 pick，之後不再更改。</dd>
-<dt>ROI</dt><dd>以 Pinnacle 賠率計算的投報率（每注 1 單位，走水不計）。</dd>
+<dt>訊號強度</dt><dd>盤口移動量 ÷ 蒸汽門檻（讓分 1.0、總分 1.5，取較大者）。1.0× 剛達蒸汽，2.0× 以上為推薦。這不是勝率。</dd><dt>市場一致性</dt><dd>目前只有 Pinnacle 單一來源，無法交叉驗證其他莊家是否同步變動。</dd><dt>ROI</dt><dd>以 Pinnacle 賠率計算的投報率（每注 1 單位，走水不計）。</dd>
 <dt>CLV</dt><dd>鎖定盤相對收盤盤的點數優勢，正值代表買到比收盤更好的數字。</dd>
 <dt>Wilson 下界</dt><dd>勝率 95% 信賴區間下緣，需 ≥ 30 場且高於 52.4% 才算有 edge。</dd></dl></dialog>
 
@@ -104,11 +107,14 @@ const f=n=>n==null?"–":(n>0?"+":"")+n;
 const SD={home:"主隊",away:"客隊",over:"大分",under:"小分"},MK={spread:"讓分",total:"大小分"},RS={win:"贏",loss:"輸",push:"走水"};
 const et=(t,o)=>new Date(t).toLocaleString("en-US",{timeZone:"America/New_York",...o});
 const day=t=>new Date(t).toLocaleDateString("en-CA",{timeZone:"America/New_York"});
-let G=[],P=[],S=null,tab=1,flt="all",byMag=true,cmp=false,sel=null,last=0,conn="連線中...";
+let G=[],P=[],S=null,tab=1,flt="all",byMag=true,cmp=false,adv=false,sel=null,last=0,conn="連線中...";
 
+const twt=(t,o)=>new Date(t).toLocaleString("zh-TW",{timeZone:"Asia/Taipei",hour12:false,...o});
+const toast=m=>{const e=$("#toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),2200)};
 setInterval(()=>{
-  $("#st").innerHTML=`ET ${new Date().toLocaleTimeString("en-GB",{timeZone:"America/New_York"})} · 場次 ${G.length} · 快照 ${G.reduce((a,g)=>a+g.n_snaps,0)} · <span class="${conn==="已連線"?"ok":""}">● ${conn}</span>`;
-  const m=Math.round((Date.now()-last)/6e4);$("#ago").textContent=last?(m<1?"剛剛更新":m<60?m+"分鐘前更新":Math.floor(m/60)+"小時前更新"):"";$("#ago").style.color=m>10?"var(--rd)":"var(--gr)";
+  const z=(o,tz)=>new Date().toLocaleTimeString("en-GB",{timeZone:tz,...o});
+  $("#st").innerHTML=`台灣 ${z({},"Asia/Taipei")} · ET ${z({hour:"2-digit",minute:"2-digit"},"America/New_York")} · 場次 ${G.length} · 快照 ${G.reduce((a,g)=>a+g.n_snaps,0)} · <span class="${conn==="已連線"?"ok":""}">● ${conn}</span>`;
+  const m=Math.round((Date.now()-last)/6e4);$("#ago").textContent=last?"資料最後更新："+(m<1?"剛剛":m<60?m+" 分鐘前":Math.floor(m/60)+" 小時前"):"";$("#ago").style.color=m>10?"var(--rd)":"var(--gr)";
 },1000);
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=+b.dataset.t;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));render()});
 
@@ -121,79 +127,97 @@ const dir=i=>[i.dS?`讓分→${i.dS<0?"主隊":"客隊"}`:"",i.dT?`總分→${i.
 const isRec=p=>Math.abs(p.delta||0)>=(p.market==="spread"?TH.sr:TH.tr);
 
 async function load(){
-  conn="更新中...";
-  try{[G,P,S]=await Promise.all([j("/games"),j("/picks?limit=500"),j("/stats")]);conn="已連線";last=Date.now()}
-  catch(e){conn="離線";$("#v").innerHTML=`<div class="box">連不上後端（${e.message}）。Render 免費方案冷啟動需 30–60 秒，稍後按 ↺ 更新盤口。</div>`;return}
+  const rb=$("#rb");rb.disabled=true;rb.textContent="↻ 更新中…";conn="更新中...";
+  try{[G,P,S]=await Promise.all([j("/games"),j("/picks?limit=500"),j("/stats")]);conn="已連線";last=Date.now();rb.textContent="✓ 已更新"}
+  catch(e){conn="離線";rb.textContent="✕ 失敗，點此重試";rb.disabled=false;
+    if(!G.length)$("#v").innerHTML=`<div class="box">連不上後端（${e.message}）。Render 免費方案冷啟動需 30–60 秒，稍後按「更新盤口」。</div>`;else toast("更新失敗，目前顯示的是舊資料");return}
+  rb.disabled=false;setTimeout(()=>{if(!rb.disabled)rb.textContent="↺ 更新盤口"},2500);
   const I=G.map(info);
-  $("#k1").textContent=I.filter(i=>i.lv).length;$("#k2").textContent=I.filter(i=>i.pk).length;$("#k3").textContent=G.reduce((a,g)=>a+g.picks.length,0);
+  $("#k1").textContent=I.filter(i=>i.lv&&i.hrs>0).length;$("#k2").textContent=I.filter(i=>i.pk).length;$("#k3").textContent=G.reduce((a,g)=>a+g.picks.length,0);
   $("#k4").textContent=S.all.n?Math.round(S.all.win_rate*100)+"%":"—";$("#k5").textContent=S.all.n?S.all.n+"場":"";
   render();
 }
 function render(){$("#v").innerHTML="";[null,today,settled,pre][tab]()}
 
 function perf(){
-  const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),W=r.filter(p=>p.result==="win"),L=r.filter(p=>p.result==="loss");
-  const n=W.length+L.length,roi=n?(W.reduce((a,p)=>a+(p.price_at_pick-1),0)-L.length)/n*100:null;
-  const rc=r.filter(isRec),rw=rc.filter(p=>p.result==="win").length,rn=rc.filter(p=>p.result!=="push").length;
-  return`<div class="ph"><span>📊 歷史績效（蒸汽信號）</span><span>近30天</span></div><div class="sg mono">
-  <div><small>近30天</small><b class="s">${W.length}W ${L.length}L</b></div>
-  <div><small>勝率</small><b style="color:var(--gr)">${n?Math.round(W.length/n*100)+"%":"—"}</b></div>
-  <div><small>ROI</small><b style="color:${roi>=0?"var(--gr)":"var(--rd)"}">${roi==null?"—":(roi>0?"+":"")+roi.toFixed(1)+"%"}</b></div>
-  <div><small>推薦勝率</small><b style="color:${rn&&rw/rn>=.5?"var(--gr)":"var(--rd)"}">${rn?Math.round(rw/rn*100)+"%":"—"}</b></div></div>`;
+  const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),W=r.filter(p=>p.result==="win"),L=r.filter(p=>p.result==="loss"),U=r.length-W.length-L.length,n=W.length+L.length;
+  const roi=n?(W.reduce((a,p)=>a+(p.price_at_pick-1),0)-L.length)/n*100:null,c=r.filter(p=>p.clv_pts!=null),ac=c.length?c.reduce((a,p)=>a+p.clv_pts,0)/c.length:null;
+  const rc=r.filter(isRec),rw=rc.filter(p=>p.result==="win").length,rn=rc.filter(p=>p.result!=="push").length,G_="var(--gr)",R_="var(--rd)";
+  const bx=(l,v,col,tip)=>`<div title="${tip}"><small>${l}</small><b style="color:${col||"var(--tx)"}">${v}</b></div>`;
+  return`<div class="ph"><span>📊 歷史績效（蒸汽信號）</span><span>近30天 · 依鎖定當下盤口結算</span></div><div class="sg mono">
+  ${bx("已結算",r.length+"場",0,"近30天已結算 pick 數（含走水）")}${bx("命中率",n?Math.round(W.length/n*100)+"%":"—",n?G_:0,"贏÷(贏+輸)，走水 "+U+" 場另計")}${bx("ROI",roi==null?"—":(roi>0?"+":"")+roi.toFixed(1)+"%",roi==null?0:roi>=0?G_:R_,"以 Pinnacle 賠率計，每注 1 單位，走水不計")}
+  ${bx("平均 CLV",ac==null?"—":f(+ac.toFixed(2)),ac==null?0:ac>0?G_:R_,"鎖定盤相對收盤盤的點數優勢；正 CLV 不保證獲利")}${bx("推薦勝率",rn?Math.round(rw/rn*100)+"%":"—",rn?(rw/rn>=.5?G_:R_):0,"僅統計移動 ≥ 推薦門檻的 pick（"+rn+" 場）")}${bx("W-L-P",`${W.length}-${L.length}-${U}`,0,"贏-輸-走水")}</div>
+  ${r.length<30?`<div class="note" style="padding:8px 16px;border-bottom:1px solid var(--ln)">⚠ 樣本 ${r.length} 場，未達 30 場，統計不具參考價值</div>`:""}`;
 }
-
-function stars(m){const n=Math.min(5,Math.round(m*2.5));return`<span class="stars">${"★".repeat(n).replace(/★/g,"<i>★</i>")}${"☆".repeat(5-n)}</span>`}
+const stars=m=>`<span title="訊號強度＝盤口移動量 ÷ 蒸汽門檻（讓分 1.0／總分 1.5）。這不是勝率。" style="color:${m>=2?"var(--or)":"var(--mu)"}">強度 ${m.toFixed(1)}×</span>`;
 function status(i){return i.hrs<=0?["進行中","var(--rd)"]:i.pk?["可進場","var(--gr)"]:i.lv?[i.lv===2?"推薦":"蒸汽","var(--or)"]:["等待中","var(--mu)"]}
 
 function today(){
-  const F=[["all","全部"],["rec","⚡ 推薦"],["steam","🔥 蒸汽"],["spread","讓分"],["total","大小分"],["6h","⏱ 6hr內"]];
+  const F1=[["all","全部"],["rec","⚡ 推薦"],["steam","🔥 蒸汽"],["6h","⏱ 6hr內"]],F2=[["spread","讓分"],["total","大小分"]];
   const rows=G.map(g=>({g,i:info(g)})).filter(({i})=>({all:1,rec:i.lv===2,steam:i.lv>=1,spread:Math.abs(i.dS)>=TH.s,total:Math.abs(i.dT)>=TH.t,"6h":i.hrs<=6&&i.hrs>0}[flt]))
     .sort((a,b)=>byMag?b.i.mag-a.i.mag:new Date(a.g.commence)-new Date(b.g.commence));
+  const fb=([k,n])=>`<button class="${flt===k?"on":""}" onclick="flt='${k}';render()">${n}</button>`;
   $("#v").innerHTML=`<div class="main ${sel?"d":""}" id="w"><div class="card">${perf()}
-  <div class="pl" style="border-bottom:0">${F.map(([k,n])=>`<button class="${flt===k?"on":""}" onclick="flt='${k}';render()">${n}</button>`).join("")}</div>
-  <div class="pl" style="padding-top:0;justify-content:flex-end"><button onclick="byMag=!byMag;render()">${byMag?"🔥 排序":"🕒 排序"}</button><button onclick="cmp=!cmp;render()" aria-label="精簡檢視">▤</button></div>
+  <div class="pl">${F1.map(fb).join("")}<button onclick="adv=!adv;render()">${adv?"收合 ▴":"更多篩選 ▾"}</button></div>
+  ${adv?`<div class="pl" style="padding-top:0">${F2.map(fb).join("")}<button onclick="byMag=!byMag;render()">${byMag?"🔥 依強度":"🕒 依開賽"}</button><button onclick="cmp=!cmp;render()">${cmp?"▤ 展開":"▤ 精簡"}</button></div>`:""}
   <div class="gl ${cmp?"c":""}">${rows.map(({g,i})=>{const[t,c]=status(i);return`<div class="gc ${i.pk?"p":i.lv?"s":""} ${sel===g.id?"sel":""}" tabindex="0" onclick="pick('${g.id}')" onkeydown="if(event.key==='Enter')pick('${g.id}')">
-  <div class="r1 mono"><span>${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"}).replace(",","")}</span>${stars(i.mag)}</div>
+  <div class="r1 mono"><span>${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 台灣 · ET ${et(g.commence,{hour:"2-digit",minute:"2-digit",hour12:false})}</span>${stars(i.mag)}</div>
   <div class="stt" style="color:${c}">${t}</div><div class="tm">${g.away}<span>VS</span>${g.home}</div>
   <div class="r3 mono"><div class="nm">${i.l.spread??"–"}<small>讓分</small>${i.dS?`<em>${f(i.dS)}</em>`:""}</div><div class="nm">${i.l.total??"–"}<small>總分</small>${i.dT?`<em>${f(i.dT)}</em>`:""}</div>
   <div class="sp"><button class="mb" onclick="event.stopPropagation();cp('${g.id}')">複製</button><span class="pill" style="color:${c};border-color:${c}">${t}</span></div></div></div>`}).join("")||'<div class="note" style="padding:30px;text-align:center">沒有符合條件的場次</div>'}</div>
-  <div class="ft">📡 資料來源：Pinnacle（銳盤）· The Odds API<br>🔄 更新頻率：依距開賽時間自動調整<br>⚠ 僅供參考，不構成投注建議</div></div>
-  <div class="card dp" id="d"><div class="hint"><div class="ic">📊</div><b>選擇一場賽事，查看盤口波動與蒸汽數據</b>← 左側有 🔥 進度條的場次代表資金正在流動<br><span style="color:var(--gr)">綠色邊框</span> = 可進場 · <span style="color:var(--or)">黃色</span> = 蒸汽 · 暗色 = 冷卻中</div></div></div>`;
+  <div class="ft">📡 資料來源：Pinnacle（銳盤）· The Odds API（單一來源）<br>🔄 更新頻率：依距開賽時間自動調整<br>⚠ 訊號僅描述盤口變動，不代表勝率，不構成投注建議</div></div>
+  <div class="card dp" id="d"><div class="hint"><div class="ic">📊</div><b>選擇一場賽事，查看盤口波動與訊號依據</b>強度、狀態與觸發原因會在這裡展開<br><span style="color:var(--gr)">綠色邊框</span> = 可進場 · <span style="color:var(--or)">黃色</span> = 蒸汽 · 暗色 = 冷卻中</div></div></div>`;
   if(sel)pick(sel,1);
 }
+function cp(id){const g=G.find(x=>x.id===id),i=info(g),t=`${g.away} @ ${g.home}｜台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}｜讓分(主) ${f(g.open_spread)}→${f(i.l.spread)}｜總分 ${g.open_total}→${i.l.total}｜${dir(i)||"無明顯移動"}｜強度 ${i.mag.toFixed(1)}×`;navigator.clipboard.writeText(t).then(()=>toast("已複製：場次、初盤→現盤、移動方向與強度"),()=>toast("複製失敗，請手動選取"))}
 
-function cp(id){const g=G.find(x=>x.id===id),i=info(g);navigator.clipboard.writeText(`${g.away} @ ${g.home} 讓分${f(g.open_spread)}→${f(i.l.spread)} 總分${g.open_total}→${i.l.total} ${dir(i)}`)}
-const hm=t=>et(t,{hour:"2-digit",minute:"2-digit",hour12:false});
+const hm=t=>twt(t,{hour:"2-digit",minute:"2-digit"});
 const fP=n=>n==null?"–":Number(n).toFixed(3);
 const dur=h=>h<=0?"已開賽":(Math.floor(h)?Math.floor(h)+" 小時 ":"")+Math.round((h%1)*60)+" 分";
-function chart(s,k){
-  const q=s.filter(x=>x[k]!=null);
-  if(q.length<2)return'<div class="note" style="padding:12px 0">快照不足（至少 2 筆才畫得出走勢）</div>';
-  const v=q.map(x=>x[k]),hi=Math.max(...v),lo=Math.min(...v),W=600,H=160,L=48,R=16,T=14,B=26;
-  const X=i=>L+i*(W-L-R)/(q.length-1),Y=x=>hi===lo?(T+H-B)/2:T+(hi-x)/(hi-lo)*(H-T-B);
+const q_=(s,k)=>(s||[]).filter(x=>x[k]!=null);
+function d60(s,k){const q=q_(s,k);if(q.length<2)return null;const e=new Date(q[q.length-1].ts),r=[...q].reverse().find(x=>e-new Date(x.ts)>=36e5);return r?+(q[q.length-1][k]-r[k]).toFixed(2):null}
+function chart(s,k,pk,fm){
+  const q=q_(s,k);if(q.length<2)return'<div class="note" style="padding:12px 0">快照不足（至少 2 筆才畫得出走勢）</div>';
+  const T=q.map(x=>+new Date(x.ts)),t0=T[0],span=T[T.length-1]-t0||1,v=q.map(x=>x[k]),hi=Math.max(...v),lo=Math.min(...v),W=600,H=170,L=48,R=16,TP=14,B=28;
+  const X=i=>L+(T[i]-t0)/span*(W-L-R),Y=x=>hi===lo?(TP+H-B)/2:TP+(hi-x)/(hi-lo)*(H-TP-B);
   let d=`M${X(0)},${Y(v[0])}`;for(let i=1;i<q.length;i++)d+=` L${X(i)},${Y(v[i-1])} L${X(i)},${Y(v[i])}`;
-  const gl=(hi===lo?[hi]:[hi,(hi+lo)/2,lo]).map(x=>`<line x1="${L}" x2="${W-R}" y1="${Y(x)}" y2="${Y(x)}" stroke="#232f4e"/><text x="${L-6}" y="${Y(x)+4}" text-anchor="end" fill="#5f6f93" font-size="11" font-family="monospace">${+x.toFixed(2)}</text>`).join("");
-  return`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${k} 走勢">${gl}<path d="${d}" fill="none" stroke="#ff9f1c" stroke-width="2"/>${v.map((x,i)=>`<circle cx="${X(i)}" cy="${Y(x)}" r="${i===v.length-1?5:3}" fill="${i===v.length-1?"#22e64a":"#ff9f1c"}"/>`).join("")}<text x="${L}" y="${H-6}" fill="#5f6f93" font-size="11" font-family="monospace">${hm(q[0].ts)}</text><text x="${W-R}" y="${H-6}" text-anchor="end" fill="#5f6f93" font-size="11" font-family="monospace">${hm(q[q.length-1].ts)} ET</text></svg>`;
+  const gl=(hi===lo?[hi]:[hi,(hi+lo)/2,lo]).map(x=>`<line x1="${L}" x2="${W-R}" y1="${Y(x)}" y2="${Y(x)}" stroke="#232f4e"/><text x="${L-6}" y="${Y(x)+4}" text-anchor="end" fill="#8795b3" font-size="12" font-family="monospace">${+x.toFixed(2)}</text>`).join("");
+  const dd=span>20*36e5,tk=[0,1/3,2/3,1].map(r=>{const t=t0+r*span;return`<text x="${L+r*(W-L-R)}" y="${H-8}" text-anchor="${r?r===1?"end":"middle":"start"}" fill="#8795b3" font-size="11" font-family="monospace">${twt(t,dd?{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}:{hour:"2-digit",minute:"2-digit"})}</text>`}).join("");
+  const dots=v.map((x,i)=>`<circle cx="${X(i)}" cy="${Y(x)}" r="${i===v.length-1?6:4}" fill="${i===v.length-1?"#22e64a":"#ff9f1c"}"><title>${twt(q[i].ts,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}（台灣）｜${fm(x)}｜賠率 ${fP(q[i][pk])}</title></circle>`).join("");
+  let mx=0,mt=null,lc=null,nc=0;for(let i=1;i<q.length;i++){const e=v[i]-v[i-1];if(e){nc++;lc=i;if(Math.abs(e)>Math.abs(mx)){mx=+e.toFixed(2);mt=q[i].ts}}}
+  const z=d60(s,k);
+  return`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${k} 走勢，橫軸為真實時間（台灣）">${gl}${tk}<path d="${d}" fill="none" stroke="#ff9f1c" stroke-width="2"/>${dots}</svg>
+  <div class="note" style="margin-top:6px;line-height:1.7">全程 ${f(+(v[v.length-1]-v[0]).toFixed(2))}（${fm(v[0])} → ${fm(v[v.length-1])}）· 變動 ${nc} 次${mx?` · 最大單次 ${f(mx)}（${hm(mt)}）`:""}${lc!=null?` · 最近一次變動 ${hm(q[lc].ts)}，之後 ${q.length-1-lc} 筆未變`:" · 全程無變動"} · 近 60 分鐘 ${z==null?"資料不足":f(z)} · 滑鼠移到圓點可看時間與賠率</div>`;
 }
 async function pick(id,keep){
   sel=id;const g=G.find(x=>x.id===id);if(!g)return;const i=info(g);
   if(!keep)$("#w").classList.add("d");
-  const s=await j("/game/"+id).catch(()=>null),[t,c]=status(i),l=i.l;
-  const rng=k=>{const v=(s||[]).map(x=>x[k]).filter(x=>x!=null);return v.length?`高 ${Math.max(...v)} / 低 ${Math.min(...v)}`:"–"};
-  const win=i.hrs<=0?"已開賽":i.hrs>2?"開賽前 2 小時開始鎖定":i.hrs>0.75?"鎖定窗口進行中":"鎖定窗口已結束";
+  const s=await j("/game/"+id).catch(()=>null),[t,c]=status(i),l=i.l,F=s&&s[0]||{},age=l.ts?(Date.now()-new Date(l.ts))/6e4:null;
+  const rng=k=>{const v=q_(s,k).map(x=>x[k]);return v.length?`高 ${Math.max(...v)} / 低 ${Math.min(...v)}`:"–"};
+  const pkS=q_(s,"spread").reduce((a,x)=>Math.max(a,Math.abs(x.spread-g.open_spread)),0),pkT=q_(s,"total").reduce((a,x)=>Math.max(a,Math.abs(x.total-g.open_total)),0);
+  const state=g.picks.length?"✅ 已鎖定（進場價已固定，不再更改）":i.hrs<=0?"⛔ 已開賽，未鎖定":i.lv?"🟠 條件成立（"+(i.hrs<=2&&i.hrs>0.75?"鎖定窗口中":"等待 120～45 分鐘窗口")+"）":pkS>=TH.s||pkT>=TH.t?"⚪ 已失效（曾達門檻，目前已回吐）":"👀 觀察中（尚未達門檻）";
+  const pr=(a,b)=>a!=null&&b!=null?`${fP(a)} → ${fP(b)}（${f(+(b-a).toFixed(3))}）`:"–";
   const rows=(s||[]).map((x,n,a)=>{const p=a[n-1]||{},ch=k=>p[k]!=null&&x[k]!==p[k]?' class="up"':"";return`<tr><td>${hm(x.ts)}</td><td${ch("spread")}>${f(x.spread)}</td><td${ch("spread_price")}>${fP(x.spread_price)}</td><td${ch("total")}>${x.total??"–"}</td><td${ch("over_price")}>${fP(x.over_price)}</td><td${ch("under_price")}>${fP(x.under_price)}</td></tr>`}).reverse().slice(0,30).join("");
   $("#d").innerHTML=`<div><button class="b back" onclick="sel=null;render()" style="height:34px">← 返回場次列表</button>
   <h2 style="margin:0">${g.away} <span style="color:var(--mu)">@</span> ${g.home}<span class="stp" style="color:${c}">${t}</span></h2>
-  <div class="note">${dir(i)||"盤口尚無明顯移動"} · ${g.n_snaps} 筆快照 · ET ${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})} · 台灣 ${new Date(g.commence).toLocaleString("zh-TW",{timeZone:"Asia/Taipei",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}</div>
+  <div class="note">開賽 台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}（ET ${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}）· ${g.n_snaps} 筆快照${age!=null&&age>180&&i.hrs>0?' · <b style="color:var(--rd)">⚠ 最新快照已超過 3 小時，資料可能過期</b>':""}</div>
   <div class="g4 mono">
   <div class="cell"><small>讓分（主）初 → 現</small><span class="v">${f(g.open_spread)} → ${f(l.spread)}</span> <span class="up">${i.dS?(i.dS>0?"▲":"▼")+Math.abs(i.dS):""}</span><span class="sub">賠率 ${fP(l.spread_price)} · ${rng("spread")}</span></div>
   <div class="cell"><small>大小分 初 → 現</small><span class="v">${g.open_total??"–"} → ${l.total??"–"}</span> <span class="up">${i.dT?(i.dT>0?"▲":"▼")+Math.abs(i.dT):""}</span><span class="sub">大 ${fP(l.over_price)} / 小 ${fP(l.under_price)} · ${rng("total")}</span></div>
-  <div class="cell"><small>距開賽</small><span class="v">${dur(i.hrs)}</span><span class="sub">${win}</span></div>
-  <div class="cell"><small>最新快照</small><span class="v">${l.ts?hm(l.ts):"–"}</span><span class="sub">ET · 動能 ${i.mag.toFixed(1)}x 門檻</span></div></div>
-  <div class="sec">讓分走勢（主隊盤口）</div>${s?chart(s,"spread"):'<div class="note">資料載入失敗</div>'}
-  <div class="sec">大小分走勢</div>${s?chart(s,"total"):""}
-  <div class="sec">Pick 鎖定紀錄</div>${g.picks.map(p=>`<div class="pr"><b>${MK[p.market]} ${SD[p.side]}</b><span class="mono">@ ${p.line_at_pick}</span><span class="note">開盤 ${p.open_line} · 移動 ${f(p.delta)} · 賠率 ${fP(p.price_at_pick)} · 鎖定 ET ${hm(p.locked_at)}</span><span class="${p.settled?p.result:""}" style="margin-left:auto;font-weight:700">${p.settled?RS[p.result]:"待結算"}</span></div>`).join("")||'<div class="note">尚無鎖定 pick（開賽前 120～45 分鐘內達蒸汽門檻才鎖定）</div>'}
-  <div class="sec">快照明細（最新在上，橘色 = 與上一筆不同）</div><div class="tb"><table class="mono"><tr><th>時間 ET</th><th>讓分</th><th>賠率</th><th>總分</th><th>大</th><th>小</th></tr>${rows||'<tr><td colspan="6" style="text-align:center;color:var(--mu)">尚無快照</td></tr>'}</table></div></div>`;
+  <div class="cell"><small>距開賽</small><span class="v">${dur(i.hrs)}</span><span class="sub">${i.hrs<=0?"已開賽":i.hrs>2?"開賽前 2 小時開始鎖定":i.hrs>0.75?"鎖定窗口進行中":"鎖定窗口已結束"}</span></div>
+  <div class="cell"><small>資料最後更新</small><span class="v">${l.ts?hm(l.ts):"–"}</span><span class="sub">台灣時間 · ${age==null?"":Math.round(age)+" 分鐘前"}</span></div></div>
+  <div class="sec">訊號依據（為什麼是「${t}」）</div>
+  <table class="rules"><tr><td>訊號狀態</td><td>${state}</td></tr>
+  <tr><td>訊號強度</td><td class="mono">${i.mag.toFixed(1)}× ＝ max(|讓分移動| ÷ ${TH.s}, |總分移動| ÷ ${TH.t})；≥1.0× 蒸汽、≥${(TH.sr/TH.s).toFixed(1)}× 推薦。這不是勝率。</td></tr>
+  <tr><td>盤口變動</td><td class="mono">讓分 ${f(g.open_spread)} → ${f(l.spread)}（${f(i.dS)}，歷史最大偏離 ${pkS.toFixed(1)}）· 總分 ${g.open_total} → ${l.total}（${f(i.dT)}，最大偏離 ${pkT.toFixed(1)}）</td></tr>
+  <tr><td>變動速度</td><td class="mono">近 60 分鐘：讓分 ${d60(s,"spread")==null?"不足":f(d60(s,"spread"))} · 總分 ${d60(s,"total")==null?"不足":f(d60(s,"total"))}</td></tr>
+  <tr><td>賠率變化</td><td class="mono">讓分 ${pr(F.spread_price,l.spread_price)}<br>大 ${pr(F.over_price,l.over_price)} · 小 ${pr(F.under_price,l.under_price)}</td></tr>
+  <tr><td>市場一致性</td><td>僅 Pinnacle 單一來源，無法交叉驗證其他莊家是否同步變動</td></tr>
+  <tr><td>價值判斷</td><td>證據不足：目前沒有經驗證的勝率模型，盤口異動 ≠ 高勝率，也不代表現價仍有價值</td></tr></table>
+  <div class="sec">讓分走勢（主隊盤口 · 橫軸為真實時間）</div>${s?chart(s,"spread","spread_price",f):'<div class="note">資料載入失敗</div>'}
+  <div class="sec">大小分走勢</div>${s?chart(s,"total","over_price",x=>x):""}
+  <div class="sec">Pick 鎖定紀錄</div>${g.picks.map(p=>`<div class="pr"><b>${MK[p.market]} ${SD[p.side]}</b><span class="mono">@ ${p.line_at_pick}</span><span class="note">開盤 ${p.open_line} · 移動 ${f(p.delta)} · 賠率 ${fP(p.price_at_pick)} · 鎖定 ${hm(p.locked_at)}（台灣）</span><span class="${p.settled?p.result:""}" style="margin-left:auto;font-weight:700">${p.settled?RS[p.result]:"待結算"}</span></div>`).join("")||'<div class="note">尚無鎖定 pick（開賽前 120～45 分鐘內達蒸汽門檻才鎖定）</div>'}
+  <div class="sec">快照明細（時間為台灣時間，最新在上，橘色 = 與上一筆不同）</div><div class="tb"><table class="mono"><tr><th>時間</th><th>讓分</th><th>賠率</th><th>總分</th><th>大</th><th>小</th></tr>${rows||'<tr><td colspan="6" style="text-align:center;color:var(--mu)">尚無快照</td></tr>'}</table></div></div>`;
 }
 
 function parlay(){
