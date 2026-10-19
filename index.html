@@ -73,6 +73,16 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 .tm{font-size:20px}.nm{font-size:26px}.r1{font-size:12px}.stt{font-size:14px}.note{font-size:13px}.sg{grid-template-columns:repeat(3,1fr)}.sg small{font-size:12px}.pl button{font-size:14px}.cell small{font-size:12px}.cell .v{font-size:22px}
 .rules td:first-child{color:var(--mu);white-space:nowrap;width:110px}.rules td{text-align:left;font-size:13px;vertical-align:top}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0a101e;border:1px solid var(--gr);padding:8px 18px;border-radius:8px;opacity:0;transition:.2s;pointer-events:none;z-index:9}.toast.on{opacity:1}
+.tl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.tl>div{background:var(--p2);border:1px solid var(--ln);border-radius:10px;padding:8px 10px;text-align:center}.tl>div.hot{border-color:var(--or)}
+.tl small{display:block;color:var(--mu);font-size:12px}.tl b{display:block;font-size:28px;line-height:1.2}.tl span{font-size:12px;color:var(--mu)}.tl em{font-style:normal;color:var(--or);font-weight:700;margin-left:6px}
+.sr{display:flex;align-items:center;gap:10px;margin-top:10px}.sr span{font-size:12px;color:var(--mu);white-space:nowrap}
+.sb{flex:1;height:6px;background:var(--ln);border-radius:3px;overflow:hidden}.sb i{display:block;height:100%;background:linear-gradient(90deg,var(--gr),var(--or))}
+.gl.c .tl,.gl.c .sr{display:none}
+.cap{display:inline-flex;background:var(--p2);border:1px solid var(--ln);border-radius:999px;padding:3px;gap:2px;margin:14px 0 4px;flex-wrap:wrap}
+.cap button{background:none;border:0;border-radius:999px;padding:4px 16px;color:var(--mu);font-weight:600;font-size:14px}.cap button.on{background:var(--tx);color:var(--bg)}
+.tlx{border-left:2px solid var(--ln);margin:10px 0 0 6px}.tlx>div{position:relative;padding:6px 0 12px 18px}.tlx>div:before{content:"";position:absolute;left:-7px;top:12px;width:12px;height:12px;border-radius:50%;background:var(--or)}.tlx>div.o:before{background:var(--gr)}.tlx>div.p:before{background:var(--mu)}
+.tlx small{color:var(--mu);display:block}
 @media(max-width:860px){.main{zoom:1;min-height:0}.g4{grid-template-columns:repeat(2,1fr)}.dp{position:static;max-height:none}.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
 </style>
 </head>
@@ -107,7 +117,7 @@ const f=n=>n==null?"–":(n>0?"+":"")+n;
 const SD={home:"主隊",away:"客隊",over:"大分",under:"小分"},MK={spread:"讓分",total:"大小分"},RS={win:"贏",loss:"輸",push:"走水"};
 const et=(t,o)=>new Date(t).toLocaleString("en-US",{timeZone:"America/New_York",...o});
 const day=t=>new Date(t).toLocaleDateString("en-CA",{timeZone:"America/New_York"});
-let G=[],P=[],S=null,tab=1,flt="all",byMag=true,cmp=false,adv=false,sel=null,last=0,conn="連線中...";
+let G=[],P=[],S=null,tab=1,flt="all",byMag=true,cmp=false,adv=false,dtab="o",SN={},sel=null,last=0,conn="連線中...";
 
 const twt=(t,o)=>new Date(t).toLocaleString("zh-TW",{timeZone:"Asia/Taipei",hour12:false,...o});
 const toast=m=>{const e=$("#toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),2200)};
@@ -128,7 +138,7 @@ const isRec=p=>Math.abs(p.delta||0)>=(p.market==="spread"?TH.sr:TH.tr);
 
 async function load(){
   const rb=$("#rb");rb.disabled=true;rb.textContent="↻ 更新中…";conn="更新中...";
-  try{[G,P,S]=await Promise.all([j("/games"),j("/picks?limit=500"),j("/stats")]);conn="已連線";last=Date.now();rb.textContent="✓ 已更新"}
+  try{[G,P,S]=await Promise.all([j("/games"),j("/picks?limit=500"),j("/stats")]);conn="已連線";last=Date.now();SN={};rb.textContent="✓ 已更新"}
   catch(e){conn="離線";rb.textContent="✕ 失敗，點此重試";rb.disabled=false;
     if(!G.length)$("#v").innerHTML=`<div class="box">連不上後端（${e.message}）。Render 免費方案冷啟動需 30–60 秒，稍後按「更新盤口」。</div>`;else toast("更新失敗，目前顯示的是舊資料");return}
   rb.disabled=false;setTimeout(()=>{if(!rb.disabled)rb.textContent="↺ 更新盤口"},2500);
@@ -156,17 +166,19 @@ function today(){
   const F1=[["all","全部"],["rec","⚡ 推薦"],["steam","🔥 蒸汽"],["6h","⏱ 6hr內"]],F2=[["spread","讓分"],["total","大小分"]];
   const rows=G.map(g=>({g,i:info(g)})).filter(({i})=>({all:1,rec:i.lv===2,steam:i.lv>=1,spread:Math.abs(i.dS)>=TH.s,total:Math.abs(i.dT)>=TH.t,"6h":i.hrs<=6&&i.hrs>0}[flt]))
     .sort((a,b)=>byMag?b.i.mag-a.i.mag:new Date(a.g.commence)-new Date(b.g.commence));
-  const fb=([k,n])=>`<button class="${flt===k?"on":""}" onclick="flt='${k}';render()">${n}</button>`;
+  const fb=([k,n])=>`<button class="${flt===k?"on":""}" onclick="flt='${k}';render()">${n}</button>`,mv=d=>d?`<em>${d>0?"▲":"▼"}${Math.abs(d)}</em>`:"";
   $("#v").innerHTML=`<div class="main ${sel?"d":""}" id="w"><div class="card">${perf()}
   <div class="pl">${F1.map(fb).join("")}<button onclick="adv=!adv;render()">${adv?"收合 ▴":"更多篩選 ▾"}</button></div>
   ${adv?`<div class="pl" style="padding-top:0">${F2.map(fb).join("")}<button onclick="byMag=!byMag;render()">${byMag?"🔥 依強度":"🕒 依開賽"}</button><button onclick="cmp=!cmp;render()">${cmp?"▤ 展開":"▤ 精簡"}</button></div>`:""}
-  <div class="gl ${cmp?"c":""}">${rows.map(({g,i})=>{const[t,c]=status(i);return`<div class="gc ${i.pk?"p":i.lv?"s":""} ${sel===g.id?"sel":""}" tabindex="0" onclick="pick('${g.id}')" onkeydown="if(event.key==='Enter')pick('${g.id}')">
-  <div class="r1 mono"><span>${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 台灣 · ET ${et(g.commence,{hour:"2-digit",minute:"2-digit",hour12:false})}</span>${stars(i.mag)}</div>
-  <div class="stt" style="color:${c}">${t}</div><div class="tm">${g.away}<span>VS</span>${g.home}</div>
-  <div class="r3 mono"><div class="nm">${i.l.spread??"–"}<small>讓分</small>${i.dS?`<em>${f(i.dS)}</em>`:""}</div><div class="nm">${i.l.total??"–"}<small>總分</small>${i.dT?`<em>${f(i.dT)}</em>`:""}</div>
-  <div class="sp"><button class="mb" onclick="event.stopPropagation();cp('${g.id}')">複製</button><span class="pill" style="color:${c};border-color:${c}">${t}</span></div></div></div>`}).join("")||'<div class="note" style="padding:30px;text-align:center">沒有符合條件的場次</div>'}</div>
+  <div class="gl ${cmp?"c":""}">${rows.map(({g,i})=>{const[t,c]=status(i),l=i.l;return`<div class="gc ${i.pk?"p":i.lv?"s":""} ${sel===g.id?"sel":""}" tabindex="0" onclick="pick('${g.id}')" onkeydown="if(event.key==='Enter')pick('${g.id}')">
+  <div class="r1 mono"><span>${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 台灣 · ET ${et(g.commence,{hour:"2-digit",minute:"2-digit",hour12:false})}</span><span class="pill" style="color:${c};border-color:${c}">${t}</span></div>
+  <div class="tm" style="margin-top:6px">${g.away}<span>VS</span>${g.home}</div>
+  <div class="tl mono"><div class="${Math.abs(i.dS)>=TH.s?"hot":""}"><small>讓分（主）</small><b>${f(l.spread)}</b><span>賠率 ${fP(l.spread_price)}${mv(i.dS)}</span></div>
+  <div class="${Math.abs(i.dT)>=TH.t?"hot":""}"><small>大分</small><b>${l.total??"–"}</b><span>賠率 ${fP(l.over_price)}${mv(i.dT)}</span></div>
+  <div class="${Math.abs(i.dT)>=TH.t?"hot":""}"><small>小分</small><b>${l.total??"–"}</b><span>賠率 ${fP(l.under_price)}</span></div></div>
+  <div class="sr"><span title="訊號強度＝盤口移動量 ÷ 蒸汽門檻（讓分1.0／總分1.5），滿格 3×。這不是勝率。">訊號強度</span><div class="sb"><i style="width:${Math.min(i.mag/3,1)*100}%"></i></div><span class="mono">${i.mag.toFixed(1)}×</span><button class="mb" onclick="event.stopPropagation();cp('${g.id}')">複製</button></div></div>`}).join("")||'<div class="note" style="padding:30px;text-align:center">沒有符合條件的場次</div>'}</div>
   <div class="ft">📡 資料來源：Pinnacle（銳盤）· The Odds API（單一來源）<br>🔄 更新頻率：依距開賽時間自動調整<br>⚠ 訊號僅描述盤口變動，不代表勝率，不構成投注建議</div></div>
-  <div class="card dp" id="d"><div class="hint"><div class="ic">📊</div><b>選擇一場賽事，查看盤口波動與訊號依據</b>強度、狀態與觸發原因會在這裡展開<br><span style="color:var(--gr)">綠色邊框</span> = 可進場 · <span style="color:var(--or)">黃色</span> = 蒸汽 · 暗色 = 冷卻中</div></div></div>`;
+  <div class="card dp" id="d"><div class="hint"><div class="ic">📊</div><b>選擇一場賽事，查看盤口波動與訊號依據</b>右側分成「總覽、走勢、變動時間軸、快照明細」四個分頁<br><span style="color:var(--gr)">綠色邊框</span> = 可進場 · <span style="color:var(--or)">黃色</span> = 蒸汽 · 暗色 = 冷卻中</div></div></div>`;
   if(sel)pick(sel,1);
 }
 function cp(id){const g=G.find(x=>x.id===id),i=info(g),t=`${g.away} @ ${g.home}｜台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}｜讓分(主) ${f(g.open_spread)}→${f(i.l.spread)}｜總分 ${g.open_total}→${i.l.total}｜${dir(i)||"無明顯移動"}｜強度 ${i.mag.toFixed(1)}×`;navigator.clipboard.writeText(t).then(()=>toast("已複製：場次、初盤→現盤、移動方向與強度"),()=>toast("複製失敗，請手動選取"))}
@@ -189,19 +201,31 @@ function chart(s,k,pk,fm){
   return`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${k} 走勢，橫軸為真實時間（台灣）">${gl}${tk}<path d="${d}" fill="none" stroke="#ff9f1c" stroke-width="2"/>${dots}</svg>
   <div class="note" style="margin-top:6px;line-height:1.7">全程 ${f(+(v[v.length-1]-v[0]).toFixed(2))}（${fm(v[0])} → ${fm(v[v.length-1])}）· 變動 ${nc} 次${mx?` · 最大單次 ${f(mx)}（${hm(mt)}）`:""}${lc!=null?` · 最近一次變動 ${hm(q[lc].ts)}，之後 ${q.length-1-lc} 筆未變`:" · 全程無變動"} · 近 60 分鐘 ${z==null?"資料不足":f(z)} · 滑鼠移到圓點可看時間與賠率</div>`;
 }
+function timeline(s){
+  const ev=[];
+  (s||[]).forEach((x,n,a)=>{const p=a[n-1];
+    if(!p){ev.push({t:x.ts,k:"o",h:"開盤（系統首次抓到）",d:`讓分 ${f(x.spread)}（賠率 ${fP(x.spread_price)}）· 總分 ${x.total??"–"}（大 ${fP(x.over_price)} / 小 ${fP(x.under_price)}）`});return}
+    const m=[];
+    if(x.spread!=null&&p.spread!=null&&x.spread!==p.spread)m.push(`讓分 ${f(p.spread)} → ${f(x.spread)}（${f(+(x.spread-p.spread).toFixed(2))}）`);
+    if(x.total!=null&&p.total!=null&&x.total!==p.total)m.push(`總分 ${p.total} → ${x.total}（${f(+(x.total-p.total).toFixed(2))}）`);
+    if(m.length)ev.push({t:x.ts,k:"m",h:"盤口變動",d:m.join("　")});
+    else{const pc=[["spread_price","讓分賠率"],["over_price","大分賠率"],["under_price","小分賠率"]].filter(([k])=>x[k]!=null&&p[k]!=null&&Math.abs(x[k]-p[k])>=0.04).map(([k,n])=>`${n} ${fP(p[k])} → ${fP(x[k])}`);
+      if(pc.length)ev.push({t:x.ts,k:"p",h:"賠率變動（盤口未動）",d:pc.join("　")})}
+  });
+  if(ev.length<2)return'<div class="note" style="padding:14px 0">自開盤以來盤口沒有變動。</div>'+(ev[0]?`<div class="tlx"><div class="o"><b>${twt(ev[0].t,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}　${ev[0].h}</b><small class="mono">${ev[0].d}</small></div></div>`:"");
+  return`<div class="note" style="margin-top:8px">共 ${ev.length-1} 次變動（綠 = 開盤、橘 = 盤口變動、灰 = 僅賠率變動），時間為台灣時間，最新在上</div><div class="tlx">${ev.reverse().map(e=>`<div class="${e.k}"><b>${twt(e.t,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}　${e.h}</b><small class="mono">${e.d}</small></div>`).join("")}</div>`;
+}
 async function pick(id,keep){
   sel=id;const g=G.find(x=>x.id===id);if(!g)return;const i=info(g);
   if(!keep)$("#w").classList.add("d");
-  const s=await j("/game/"+id).catch(()=>null),[t,c]=status(i),l=i.l,F=s&&s[0]||{},age=l.ts?(Date.now()-new Date(l.ts))/6e4:null;
+  const s=SN[id]||(SN[id]=await j("/game/"+id).catch(()=>null)),[t,c]=status(i),l=i.l,F=s&&s[0]||{},age=l.ts?(Date.now()-new Date(l.ts))/6e4:null;
   const rng=k=>{const v=q_(s,k).map(x=>x[k]);return v.length?`高 ${Math.max(...v)} / 低 ${Math.min(...v)}`:"–"};
   const pkS=q_(s,"spread").reduce((a,x)=>Math.max(a,Math.abs(x.spread-g.open_spread)),0),pkT=q_(s,"total").reduce((a,x)=>Math.max(a,Math.abs(x.total-g.open_total)),0);
   const state=g.picks.length?"✅ 已鎖定（進場價已固定，不再更改）":i.hrs<=0?"⛔ 已開賽，未鎖定":i.lv?"🟠 條件成立（"+(i.hrs<=2&&i.hrs>0.75?"鎖定窗口中":"等待 120～45 分鐘窗口")+"）":pkS>=TH.s||pkT>=TH.t?"⚪ 已失效（曾達門檻，目前已回吐）":"👀 觀察中（尚未達門檻）";
   const pr=(a,b)=>a!=null&&b!=null?`${fP(a)} → ${fP(b)}（${f(+(b-a).toFixed(3))}）`:"–";
-  const rows=(s||[]).map((x,n,a)=>{const p=a[n-1]||{},ch=k=>p[k]!=null&&x[k]!==p[k]?' class="up"':"";return`<tr><td>${hm(x.ts)}</td><td${ch("spread")}>${f(x.spread)}</td><td${ch("spread_price")}>${fP(x.spread_price)}</td><td${ch("total")}>${x.total??"–"}</td><td${ch("over_price")}>${fP(x.over_price)}</td><td${ch("under_price")}>${fP(x.under_price)}</td></tr>`}).reverse().slice(0,30).join("");
-  $("#d").innerHTML=`<div><button class="b back" onclick="sel=null;render()" style="height:34px">← 返回場次列表</button>
-  <h2 style="margin:0">${g.away} <span style="color:var(--mu)">@</span> ${g.home}<span class="stp" style="color:${c}">${t}</span></h2>
-  <div class="note">開賽 台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}（ET ${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}）· ${g.n_snaps} 筆快照${age!=null&&age>180&&i.hrs>0?' · <b style="color:var(--rd)">⚠ 最新快照已超過 3 小時，資料可能過期</b>':""}</div>
-  <div class="g4 mono">
+  const TB=[["o","總覽"],["c","走勢"],["t","變動時間軸"],["s","快照明細"]];
+  const body={
+   o:()=>`<div class="g4 mono">
   <div class="cell"><small>讓分（主）初 → 現</small><span class="v">${f(g.open_spread)} → ${f(l.spread)}</span> <span class="up">${i.dS?(i.dS>0?"▲":"▼")+Math.abs(i.dS):""}</span><span class="sub">賠率 ${fP(l.spread_price)} · ${rng("spread")}</span></div>
   <div class="cell"><small>大小分 初 → 現</small><span class="v">${g.open_total??"–"} → ${l.total??"–"}</span> <span class="up">${i.dT?(i.dT>0?"▲":"▼")+Math.abs(i.dT):""}</span><span class="sub">大 ${fP(l.over_price)} / 小 ${fP(l.under_price)} · ${rng("total")}</span></div>
   <div class="cell"><small>距開賽</small><span class="v">${dur(i.hrs)}</span><span class="sub">${i.hrs<=0?"已開賽":i.hrs>2?"開賽前 2 小時開始鎖定":i.hrs>0.75?"鎖定窗口進行中":"鎖定窗口已結束"}</span></div>
@@ -214,10 +238,16 @@ async function pick(id,keep){
   <tr><td>賠率變化</td><td class="mono">讓分 ${pr(F.spread_price,l.spread_price)}<br>大 ${pr(F.over_price,l.over_price)} · 小 ${pr(F.under_price,l.under_price)}</td></tr>
   <tr><td>市場一致性</td><td>僅 Pinnacle 單一來源，無法交叉驗證其他莊家是否同步變動</td></tr>
   <tr><td>價值判斷</td><td>證據不足：目前沒有經驗證的勝率模型，盤口異動 ≠ 高勝率，也不代表現價仍有價值</td></tr></table>
-  <div class="sec">讓分走勢（主隊盤口 · 橫軸為真實時間）</div>${s?chart(s,"spread","spread_price",f):'<div class="note">資料載入失敗</div>'}
-  <div class="sec">大小分走勢</div>${s?chart(s,"total","over_price",x=>x):""}
-  <div class="sec">Pick 鎖定紀錄</div>${g.picks.map(p=>`<div class="pr"><b>${MK[p.market]} ${SD[p.side]}</b><span class="mono">@ ${p.line_at_pick}</span><span class="note">開盤 ${p.open_line} · 移動 ${f(p.delta)} · 賠率 ${fP(p.price_at_pick)} · 鎖定 ${hm(p.locked_at)}（台灣）</span><span class="${p.settled?p.result:""}" style="margin-left:auto;font-weight:700">${p.settled?RS[p.result]:"待結算"}</span></div>`).join("")||'<div class="note">尚無鎖定 pick（開賽前 120～45 分鐘內達蒸汽門檻才鎖定）</div>'}
-  <div class="sec">快照明細（時間為台灣時間，最新在上，橘色 = 與上一筆不同）</div><div class="tb"><table class="mono"><tr><th>時間</th><th>讓分</th><th>賠率</th><th>總分</th><th>大</th><th>小</th></tr>${rows||'<tr><td colspan="6" style="text-align:center;color:var(--mu)">尚無快照</td></tr>'}</table></div></div>`;
+  <div class="sec">Pick 鎖定紀錄</div>${g.picks.map(p=>`<div class="pr"><b>${MK[p.market]} ${SD[p.side]}</b><span class="mono">@ ${p.line_at_pick}</span><span class="note">開盤 ${p.open_line} · 移動 ${f(p.delta)} · 賠率 ${fP(p.price_at_pick)} · 鎖定 ${hm(p.locked_at)}（台灣）</span><span class="${p.settled?p.result:""}" style="margin-left:auto;font-weight:700">${p.settled?RS[p.result]:"待結算"}</span></div>`).join("")||'<div class="note">尚無鎖定 pick（開賽前 120～45 分鐘內達蒸汽門檻才鎖定）</div>'}`,
+   c:()=>`<div class="sec">讓分走勢（主隊盤口 · 橫軸為真實時間）</div>${s?chart(s,"spread","spread_price",f):'<div class="note">資料載入失敗</div>'}<div class="sec">大小分走勢</div>${s?chart(s,"total","over_price",x=>x):""}`,
+   t:()=>s?timeline(s):'<div class="note">資料載入失敗</div>',
+   s:()=>{const r=(s||[]).map((x,n,a)=>{const p=a[n-1]||{},ch=k=>p[k]!=null&&x[k]!==p[k]?' class="up"':"";return`<tr><td>${hm(x.ts)}</td><td${ch("spread")}>${f(x.spread)}</td><td${ch("spread_price")}>${fP(x.spread_price)}</td><td${ch("total")}>${x.total??"–"}</td><td${ch("over_price")}>${fP(x.over_price)}</td><td${ch("under_price")}>${fP(x.under_price)}</td></tr>`}).reverse().slice(0,40).join("");
+     return`<div class="sec">快照明細（台灣時間，最新在上，橘色 = 與上一筆不同）</div><div class="tb"><table class="mono"><tr><th>時間</th><th>讓分</th><th>賠率</th><th>總分</th><th>大</th><th>小</th></tr>${r||'<tr><td colspan="6" style="text-align:center;color:var(--mu)">尚無快照</td></tr>'}</table></div>`}
+  };
+  $("#d").innerHTML=`<div><button class="b back" onclick="sel=null;render()" style="height:34px">← 返回場次列表</button>
+  <h2 style="margin:0">${g.away} <span style="color:var(--mu)">@</span> ${g.home}<span class="stp" style="color:${c}">${t}</span></h2>
+  <div class="note">開賽 台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}（ET ${et(g.commence,{month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})}）· ${g.n_snaps} 筆快照${age!=null&&age>180&&i.hrs>0?' · <b style="color:var(--rd)">⚠ 最新快照已超過 3 小時，資料可能過期</b>':""}</div>
+  <div class="cap" role="tablist">${TB.map(([k,n])=>`<button role="tab" aria-selected="${dtab===k}" class="${dtab===k?"on":""}" onclick="dtab='${k}';pick('${id}',1)">${n}</button>`).join("")}</div>${body[dtab]()}</div>`;
 }
 
 function parlay(){
