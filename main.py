@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.0
+"""NBA Pinnacle odds-movement tracker  v1.1 (adds /calibration)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -307,6 +307,75 @@ def stats():
             out[f"{m}_{sd}"] = bucket([r for r in rows if r["market"] == m and r["side"] == sd])
     # diagnostics only (not graded edge): same picks vs open / close
     out["diagnostic_vs_close"] = bucket([{**r, "result": r.get("result_vs_close") or "push"} for r in rows])
+    return out
+
+
+def _group(rows, fn):
+    g = {}
+    for r in rows:
+        g.setdefault(fn(r), []).append(r)
+    return {k: bucket(v) for k, v in sorted(g.items())}
+
+
+def _dsize(r):
+    d = abs(r.get("delta") or 0)
+    c = [1.0, 1.5, 2.0] if r["market"] == "spread" else [1.5, 2.5, 3.5]
+    lab = f"{c[0]}-{c[1]}" if d < c[1] else f"{c[1]}-{c[2]}" if d < c[2] else f"{c[2]}+"
+    return f'{r["market"]}:{lab}'
+
+
+def _mins(r):
+    m = (r["commence"] - r["locked_at"]).total_seconds() / 60
+    return "45-70min" if m < 70 else "70-95min" if m < 95 else "95-120min"
+
+
+def _line(r):
+    x = abs(r["line_at_pick"])
+    if r["market"] == "spread":
+        return "spread:" + ("<3" if x < 3 else "3-7" if x < 7 else "7+")
+    return "total:" + ("<220" if x < 220 else "220-230" if x < 230 else "230+")
+
+
+@app.get("/calibration")
+def calibration():
+    """Weekly calibration report (paste this JSON into a conversation). Expanding window since the first honest pick."""
+    rows = list(picks.find({"settled": True, "settle_version": SETTLE_VERSION}, {"_id": 0}))
+    first = picks.find_one({}, sort=[("locked_at", ASCENDING)])
+    dims = {
+        "by_market": lambda r: r["market"],
+        "by_market_side": lambda r: f'{r["market"]}_{r["side"]}',
+        "by_delta_size": _dsize,
+        "by_minutes_before_tip": _mins,
+        "by_line_range": _line,
+    }
+    out = {
+        "generated_at": now().isoformat(),
+        "window": "expanding since first pick",
+        "since": first["locked_at"].isoformat() if first else None,
+        "settle_version": SETTLE_VERSION,
+        "legacy_excluded": picks.count_documents({"settled": True, "settle_version": {"$ne": SETTLE_VERSION}}),
+        "sample_size": len(rows),
+        "pending": picks.count_documents({"settled": False}),
+        "min_n": MIN_N,
+        "breakeven": BREAKEVEN,
+        "thresholds": {"steam_points": STEAM, "lock_window_min_before_tip": [LOCK_MIN_MIN, LOCK_MAX_MIN]},
+        "overall": bucket(rows),
+        "diagnostic_vs_open": bucket([{**r, "result": r.get("result_vs_open") or "push"} for r in rows]),
+        "diagnostic_vs_close": bucket([{**r, "result": r.get("result_vs_close") or "push"} for r in rows]),
+    }
+    n_buckets = 0
+    for name, fn in dims.items():
+        out[name] = _group(rows, fn)
+        n_buckets += len(out[name])
+    out["buckets_tested"] = n_buckets
+    out["edge_buckets"] = [f"{d}:{k}" for d in dims for k, v in out[d].items() if v["edge_claim"]]
+    out["insufficient_buckets"] = sum(1 for d in dims for v in out[d].values() if v["n"] < MIN_N)
+    out["notes"] = [
+        "edge_claim needs n>=min_n and Wilson 95% lower bound > breakeven; with this many buckets, expect false positives",
+        "do not retune thresholds on buckets with n<min_n; prefer avg_clv_pts as the faster-converging signal",
+        "diagnostic_vs_open / vs_close are NOT the official result; official result is graded at line_at_pick",
+    ]
+    out["lock_funnel"] = {k: diag.count_documents({"outcome": k}) for k in ("locked", "no_signal", "missed_window")}
     return out
 
 
