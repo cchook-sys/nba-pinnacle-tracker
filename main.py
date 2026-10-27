@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.1 (adds /calibration)
+"""NBA Pinnacle odds-movement tracker  v1.2 (adds /calibration + poll log + /diagnostics/polls)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -34,7 +34,8 @@ BREAKEVEN = 0.524
 log = logging.getLogger("nba")
 logging.basicConfig(level=logging.INFO)
 db = MongoClient(MONGO_URI, tz_aware=True)["nba_tracker"]
-events, snaps, picks, diag, meta = db.events, db.snaps, db.picks, db.diag, db.meta
+events, snaps, picks, diag, meta, plog = db.events, db.snaps, db.picks, db.diag, db.meta, db.polls
+plog.create_index("ts", expireAfterSeconds=14 * 86400)
 snaps.create_index([("event_id", ASCENDING), ("ts", ASCENDING)])
 snaps.create_index("ts", expireAfterSeconds=60 * 86400)     # keep M0 small
 picks.create_index([("event_id", ASCENDING), ("market", ASCENDING)], unique=True)
@@ -46,6 +47,13 @@ app.add_middleware(CORSMiddleware, allow_origins=[ALLOW_ORIGIN], allow_methods=[
 
 def now():
     return datetime.now(timezone.utc)
+
+
+def log_poll(action, **kw):
+    try:
+        plog.insert_one({"ts": now(), "action": action, **kw})
+    except Exception:
+        pass
 
 
 # ---------- credits ----------
@@ -252,18 +260,23 @@ def scheduler():
                 ok, key = can_spend()
                 last_poll = time.time()
                 if ok:
-                    poll_odds()
+                    n = poll_odds()
                     meta_set(key, meta_get(key, 0) + POLL_COST)
+                    log_poll("polled", snapshots=n, remaining=meta_get("remaining"))
+                else:
+                    log_poll("skipped_budget", remaining=meta_get("remaining"), allowance=round(daily_allowance(), 1))
             if time.time() - last_settle >= 3 * 3600:
                 last_settle = time.time()
                 settle()
         except Exception as e:
             log.exception("scheduler error: %s", e)
+            log_poll("error", error=str(e)[:200])
         time.sleep(60)
 
 
 @app.on_event("startup")
 def _start():
+    log_poll("startup")
     if ENABLE_SCHEDULER:
         threading.Thread(target=scheduler, daemon=True).start()
 
@@ -397,8 +410,38 @@ def budget():
             "daily_allowance": round(daily_allowance(), 1), "poll_cost": POLL_COST}
 
 
+@app.get("/diagnostics/polls")
+def diag_polls(days: int = 7):
+    """Did the crawler actually run? per-day poll log, long gaps, and games that had no snapshot in the lock window."""
+    since = now() - timedelta(days=days)
+    rows = list(plog.find({"ts": {"$gte": since}}, {"_id": 0}).sort("ts", 1))
+    by_day = {}
+    for r in rows:
+        d = by_day.setdefault(r["ts"].strftime("%m-%d"), {})
+        d[r["action"]] = d.get(r["action"], 0) + 1
+    polled = [r["ts"] for r in rows if r["action"] in ("polled", "manual")]
+    gaps = [{"from": a.isoformat(), "to": b.isoformat(), "minutes": round((b - a).total_seconds() / 60)}
+            for a, b in zip(polled, polled[1:]) if (b - a).total_seconds() > 3 * 3600]
+    games = []
+    for e in events.find({"commence": {"$gte": since, "$lt": now()}}).sort("commence", 1):
+        w = snaps.count_documents({"event_id": e["_id"], "ts": {
+            "$gte": e["commence"] - timedelta(minutes=LOCK_MAX_MIN),
+            "$lte": e["commence"] - timedelta(minutes=LOCK_MIN_MIN)}})
+        last = snaps.find_one({"event_id": e["_id"]}, sort=[("ts", DESCENDING)])
+        games.append({"game": f'{e["away"]}@{e["home"]}', "tip_utc": e["commence"].isoformat(),
+                      "snaps_in_lock_window": w,
+                      "last_snap_min_before_tip": round((e["commence"] - last["ts"]).total_seconds() / 60) if last else None})
+    return {"days": days, "poll_log_since": rows[0]["ts"].isoformat() if rows else None,
+            "per_day": by_day, "startups": sum(r["action"] == "startup" for r in rows),
+            "gaps_over_3h": gaps[-20:], "games_checked": len(games),
+            "games_without_window_snaps": [g for g in games if g["snaps_in_lock_window"] == 0][-30:]}
+
+
 @app.api_route("/poll", methods=["GET", "POST"])
 def manual_poll(x_cron_secret: str = Header(default="")):
     if not CRON_SECRET or x_cron_secret != CRON_SECRET:
         raise HTTPException(403, "forbidden")
-    return {"snapshots": poll_odds(), "settled": settle()}
+    n = poll_odds()
+    meta_set("spent_" + now().strftime("%Y%m%d"), meta_get("spent_" + now().strftime("%Y%m%d"), 0) + POLL_COST)
+    log_poll("manual", snapshots=n, remaining=meta_get("remaining"))
+    return {"snapshots": n, "settled": settle()}
