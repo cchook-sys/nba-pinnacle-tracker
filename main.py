@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.3 (window-priority polling, externally tickable)
+"""NBA Pinnacle odds-movement tracker  v1.4 (Taiwan store cutoff: decisions locked before 22:15 Taiwan)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -27,7 +27,12 @@ MARKETS = "spreads,totals"
 POLL_COST = 2                 # markets x 1 bookmaker group
 SETTLE_VERSION = 1
 WINDOW_POLL_MIN = int(os.getenv("WINDOW_POLL_MIN", "15"))   # poll cadence while a lock window is active
-LOCK_MAX_MIN, LOCK_MIN_MIN = 120, 45       # lock window: T-120 .. T-45 min
+# Orders are placed at physical stores in Taiwan and must be in before 22:30 Taiwan time (= 14:30 UTC, DST-proof).
+# So picks are decided in a window ending at LOCK_DEADLINE_UTC, hours before tip-off, not near tip-off.
+LOCK_DEADLINE_UTC = os.getenv("LOCK_DEADLINE_UTC", "14:15")   # 22:15 Taiwan: leaves ~15 min to place the order
+LOCK_LEAD_MIN = int(os.getenv("LOCK_LEAD_MIN", "60"))         # decision window = deadline-60min .. deadline
+DECISION_POLL_MIN = int(os.getenv("DECISION_POLL_MIN", "10"))
+CLOSE_LEAD_MIN, CLOSE_POLL_MIN = 25, 20                       # closing-line snapshots (for CLV) just before tip-off
 STEAM = {"spread": 1.0, "total": 1.5}      # initial thresholds (points vs opening)
 MIN_N = 30
 BREAKEVEN = 0.524
@@ -89,7 +94,7 @@ def day_key():
 def can_spend(kind):
     key = day_key()
     allow = daily_allowance()
-    cap = allow * 1.5 if kind == "window" else allow * 0.3      # keep most credits for lock windows
+    cap = allow * {"decision": 1.5, "close": 1.2}.get(kind, 0.3)   # priority: decision window > closing line > baseline
     ok = meta_get(key, 0) + POLL_COST <= cap and meta_get("remaining", MONTHLY_BUDGET) - POLL_COST > SETTLE_RESERVE
     return ok, key
 
@@ -159,27 +164,40 @@ def set_diag(eid, market, outcome):
                     {"$set": {"outcome": outcome, "ts": now()}}, upsert=True)
 
 
+def _dl():
+    h, m = LOCK_DEADLINE_UTC.split(":")
+    return int(h), int(m)
+
+
+def deadline_before(c):
+    """The decision deadline that applies to a game tipping at c: the latest deadline before tip-off."""
+    h, m = _dl()
+    dl = c.replace(hour=h, minute=m, second=0, microsecond=0)
+    return dl - timedelta(days=1) if dl >= c else dl
+
+
 def try_lock(evd, s, t):
-    mins = (evd["commence"] - t).total_seconds() / 60
-    if mins > LOCK_MAX_MIN or mins <= 0:
+    c = evd["commence"]
+    if t >= c:
         return
-    sig = signal(evd, s)
+    dl = deadline_before(c)
+    start = dl - timedelta(minutes=LOCK_LEAD_MIN)
+    in_win = start <= t <= dl
+    sig = signal(evd, s) if in_win else {}
     for market in ("spread", "total"):
         if picks.find_one({"event_id": evd["_id"], "market": market}):
             continue
-        if market in sig and mins >= LOCK_MIN_MIN:
+        if in_win and market in sig:
             side, line, price, d = sig[market]
             picks.insert_one({
                 "event_id": evd["_id"], "market": market, "side": side, "line_at_pick": line,
                 "price_at_pick": price, "open_line": evd["open_spread" if market == "spread" else "open_total"],
-                "delta": d, "locked_at": t, "commence": evd["commence"], "home": evd["home"],
+                "delta": d, "locked_at": t, "deadline": dl, "commence": c, "home": evd["home"],
                 "away": evd["away"], "settled": False, "settle_version": SETTLE_VERSION})
             set_diag(evd["_id"], market, "locked")
-        elif mins < LOCK_MIN_MIN:
-            in_window = snaps.count_documents({"event_id": evd["_id"], "ts": {
-                "$gte": evd["commence"] - timedelta(minutes=LOCK_MAX_MIN),
-                "$lte": evd["commence"] - timedelta(minutes=LOCK_MIN_MIN)}})
-            set_diag(evd["_id"], market, "no_signal" if in_window else "missed_window")
+        elif t > dl:       # deadline passed without a lock: either no signal, or we never polled inside the window
+            had = snaps.count_documents({"event_id": evd["_id"], "ts": {"$gte": start, "$lte": dl}})
+            set_diag(evd["_id"], market, "no_signal" if had else "missed_window")
 
 
 # ---------- settlement ----------
@@ -255,13 +273,14 @@ def bucket(rows):
 # ---------- scheduler ----------
 def due_interval():
     t = now()
-    nxt = events.find_one({"commence": {"$gt": t}}, sort=[("commence", ASCENDING)])
-    if not nxt:
-        return 360, "baseline"
-    mins = (nxt["commence"] - t).total_seconds() / 60
-    if mins <= LOCK_MAX_MIN + 5:
-        return WINDOW_POLL_MIN, "window"
-    return (90, "pre") if mins <= 480 else (240, "far")
+    h, m = _dl()
+    dl = t.replace(hour=h, minute=m, second=0, microsecond=0)
+    if dl - timedelta(minutes=LOCK_LEAD_MIN) <= t <= dl:
+        return DECISION_POLL_MIN, "decision"
+    if events.count_documents({"commence": {"$gt": t, "$lte": t + timedelta(minutes=CLOSE_LEAD_MIN)}}):
+        return CLOSE_POLL_MIN, "close"
+    soon = events.count_documents({"commence": {"$gt": t, "$lte": t + timedelta(hours=24)}})
+    return (180, "baseline") if soon else (360, "baseline")
 
 
 def tick():
@@ -363,8 +382,8 @@ def _dsize(r):
 
 
 def _mins(r):
-    m = (r["commence"] - r["locked_at"]).total_seconds() / 60
-    return "45-70min" if m < 70 else "70-95min" if m < 95 else "95-120min"
+    h = (r["commence"] - r["locked_at"]).total_seconds() / 3600
+    return "<10h" if h < 10 else "10-12h" if h < 12 else "12h+"
 
 
 def _line(r):
@@ -383,7 +402,7 @@ def calibration():
         "by_market": lambda r: r["market"],
         "by_market_side": lambda r: f'{r["market"]}_{r["side"]}',
         "by_delta_size": _dsize,
-        "by_minutes_before_tip": _mins,
+        "by_hours_before_tip": _mins,
         "by_line_range": _line,
     }
     out = {
@@ -396,7 +415,7 @@ def calibration():
         "pending": picks.count_documents({"settled": False}),
         "min_n": MIN_N,
         "breakeven": BREAKEVEN,
-        "thresholds": {"steam_points": STEAM, "lock_window_min_before_tip": [LOCK_MIN_MIN, LOCK_MAX_MIN]},
+        "thresholds": {"steam_points": STEAM, "lock_deadline_utc": LOCK_DEADLINE_UTC, "lock_lead_min": LOCK_LEAD_MIN},
         "overall": bucket(rows),
         "diagnostic_vs_open": bucket([{**r, "result": r.get("result_vs_open") or "push"} for r in rows]),
         "diagnostic_vs_close": bucket([{**r, "result": r.get("result_vs_close") or "push"} for r in rows]),
@@ -449,9 +468,9 @@ def diag_polls(days: int = 7):
             for a, b in zip(polled, polled[1:]) if (b - a).total_seconds() > 3 * 3600]
     games = []
     for e in events.find({"commence": {"$gte": since, "$lt": now()}}).sort("commence", 1):
+        dl = deadline_before(e["commence"])
         w = snaps.count_documents({"event_id": e["_id"], "ts": {
-            "$gte": e["commence"] - timedelta(minutes=LOCK_MAX_MIN),
-            "$lte": e["commence"] - timedelta(minutes=LOCK_MIN_MIN)}})
+            "$gte": dl - timedelta(minutes=LOCK_LEAD_MIN), "$lte": dl}})
         last = snaps.find_one({"event_id": e["_id"]}, sort=[("ts", DESCENDING)])
         games.append({"game": f'{e["away"]}@{e["home"]}', "tip_utc": e["commence"].isoformat(),
                       "snaps_in_lock_window": w,
