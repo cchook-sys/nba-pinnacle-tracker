@@ -1,0 +1,11 @@
+name: tick
+on:
+  schedule:
+    - cron: "*/10 14-23,0-5 * * *"   # UTC; covers ~10:00 ET to ~midnight ET, before and during NBA slates
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend (decides by itself whether to spend API credits)
+        run: curl -fsS --max-time 100 --retry 2 "https://nba-pinnacle-tracker.onrender.com/tick" -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
