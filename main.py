@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.2 (adds /calibration + poll log + /diagnostics/polls)
+"""NBA Pinnacle odds-movement tracker  v1.3 (window-priority polling, externally tickable)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -26,6 +26,7 @@ BASE = "https://api.the-odds-api.com/v4/sports/basketball_nba"
 MARKETS = "spreads,totals"
 POLL_COST = 2                 # markets x 1 bookmaker group
 SETTLE_VERSION = 1
+WINDOW_POLL_MIN = int(os.getenv("WINDOW_POLL_MIN", "15"))   # poll cadence while a lock window is active
 LOCK_MAX_MIN, LOCK_MIN_MIN = 120, 45       # lock window: T-120 .. T-45 min
 STEAM = {"spread": 1.0, "total": 1.5}      # initial thresholds (points vs opening)
 MIN_N = 30
@@ -80,9 +81,17 @@ def daily_allowance():
     return max(remaining - SETTLE_RESERVE, 0) / days_left
 
 
-def can_spend():
-    key = "spent_" + now().strftime("%Y%m%d")
-    return meta_get(key, 0) + POLL_COST <= daily_allowance(), key
+def day_key():
+    # "game day" rolls over at 17:00 UTC (~1 PM ET), i.e. before the evening slate, not mid-slate
+    return "spent_" + (now() - timedelta(hours=17)).strftime("%Y%m%d")
+
+
+def can_spend(kind):
+    key = day_key()
+    allow = daily_allowance()
+    cap = allow * 1.5 if kind == "window" else allow * 0.3      # keep most credits for lock windows
+    ok = meta_get(key, 0) + POLL_COST <= cap and meta_get("remaining", MONTHLY_BUDGET) - POLL_COST > SETTLE_RESERVE
+    return ok, key
 
 
 # ---------- odds ----------
@@ -244,30 +253,46 @@ def bucket(rows):
 
 
 # ---------- scheduler ----------
-def next_interval_min():
-    nxt = events.find_one({"commence": {"$gt": now()}}, sort=[("commence", ASCENDING)])
+def due_interval():
+    t = now()
+    nxt = events.find_one({"commence": {"$gt": t}}, sort=[("commence", ASCENDING)])
     if not nxt:
-        return 180
-    h = (nxt["commence"] - now()).total_seconds() / 3600
-    return 120 if h > 12 else 30 if h > 3 else 10
+        return 360, "baseline"
+    mins = (nxt["commence"] - t).total_seconds() / 60
+    if mins <= LOCK_MAX_MIN + 5:
+        return WINDOW_POLL_MIN, "window"
+    return (90, "pre") if mins <= 480 else (240, "far")
+
+
+def tick():
+    """One scheduling decision. State lives in Mongo, so it survives Render sleeping; safe to call as often as you like."""
+    interval, kind = due_interval()
+    since = (time.time() - meta_get("last_poll_ts", 0)) / 60
+    if since < interval:
+        return {"action": "wait", "kind": kind, "next_in_min": round(interval - since, 1)}
+    ok, key = can_spend(kind)
+    meta_set("last_poll_ts", time.time())
+    if not ok:
+        log_poll("skipped_budget", kind=kind, remaining=meta_get("remaining"), allowance=round(daily_allowance(), 1))
+        return {"action": "skipped_budget", "kind": kind}
+    n = poll_odds()
+    meta_set(key, meta_get(key, 0) + POLL_COST)
+    log_poll("polled", kind=kind, snapshots=n, remaining=meta_get("remaining"))
+    return {"action": "polled", "kind": kind, "snapshots": n}
+
+
+def tick_all():
+    out = tick()
+    if time.time() - meta_get("last_settle_ts", 0) >= 3 * 3600:
+        meta_set("last_settle_ts", time.time())
+        out["settled"] = settle()
+    return out
 
 
 def scheduler():
-    last_poll = last_settle = 0.0
     while True:
         try:
-            if time.time() - last_poll >= next_interval_min() * 60:
-                ok, key = can_spend()
-                last_poll = time.time()
-                if ok:
-                    n = poll_odds()
-                    meta_set(key, meta_get(key, 0) + POLL_COST)
-                    log_poll("polled", snapshots=n, remaining=meta_get("remaining"))
-                else:
-                    log_poll("skipped_budget", remaining=meta_get("remaining"), allowance=round(daily_allowance(), 1))
-            if time.time() - last_settle >= 3 * 3600:
-                last_settle = time.time()
-                settle()
+            tick_all()
         except Exception as e:
             log.exception("scheduler error: %s", e)
             log_poll("error", error=str(e)[:200])
@@ -405,8 +430,8 @@ def diag_locks(days: int = 14):
 
 @app.get("/budget")
 def budget():
-    key = "spent_" + now().strftime("%Y%m%d")
-    return {"remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": meta_get(key, 0),
+    key = day_key()
+    return {"window_poll_min": WINDOW_POLL_MIN, "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": meta_get(key, 0),
             "daily_allowance": round(daily_allowance(), 1), "poll_cost": POLL_COST}
 
 
@@ -437,11 +462,21 @@ def diag_polls(days: int = 7):
             "games_without_window_snaps": [g for g in games if g["snaps_in_lock_window"] == 0][-30:]}
 
 
+@app.api_route("/tick", methods=["GET", "POST"])
+def tick_route(key: str = "", x_cron_secret: str = Header(default="")):
+    """Call this from an external cron (GitHub Actions). It wakes the service and decides whether to spend credits."""
+    if not CRON_SECRET or CRON_SECRET not in (key, x_cron_secret):
+        raise HTTPException(403, "forbidden")
+    return tick_all()
+
+
 @app.api_route("/poll", methods=["GET", "POST"])
 def manual_poll(x_cron_secret: str = Header(default="")):
     if not CRON_SECRET or x_cron_secret != CRON_SECRET:
         raise HTTPException(403, "forbidden")
     n = poll_odds()
-    meta_set("spent_" + now().strftime("%Y%m%d"), meta_get("spent_" + now().strftime("%Y%m%d"), 0) + POLL_COST)
+    k = day_key()
+    meta_set(k, meta_get(k, 0) + POLL_COST)
+    meta_set("last_poll_ts", time.time())
     log_poll("manual", snapshots=n, remaining=meta_get("remaining"))
     return {"snapshots": n, "settled": settle()}
