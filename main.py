@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.4 (Taiwan store cutoff: decisions locked before 22:15 Taiwan)
+"""NBA Pinnacle odds-movement tracker  v1.5 (budget day starts at the decision window; quota reset day configurable)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -19,6 +19,7 @@ MONGO_URI = os.environ["MONGO_URI"]
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 MONTHLY_BUDGET = int(os.getenv("MONTHLY_BUDGET", "500"))   # your plan's credits / month
 SETTLE_RESERVE = int(os.getenv("SETTLE_RESERVE", "40"))    # credits kept for /scores
+QUOTA_RESET_DAY = int(os.getenv("QUOTA_RESET_DAY", "1"))    # day of month your Odds API quota resets (see their dashboard)
 ALLOW_ORIGIN = os.getenv("ALLOW_ORIGIN", "*")
 ENABLE_SCHEDULER = os.getenv("ENABLE_SCHEDULER", "1") == "1"
 
@@ -78,17 +79,31 @@ def note_credits(resp):
         meta_set("remaining", float(rem))
 
 
-def daily_allowance():
+def days_to_reset():
     t = now()
-    nxt = (t.replace(day=1) + timedelta(days=32)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    days_left = max((nxt - t).total_seconds() / 86400, 1)
+    d = min(max(QUOTA_RESET_DAY, 1), 28)
+    nxt = t.replace(day=d, hour=0, minute=0, second=0, microsecond=0)
+    if nxt <= t:
+        nxt = (nxt.replace(day=1) + timedelta(days=32)).replace(day=d)
+    return max((nxt - t).total_seconds() / 86400, 1)
+
+
+def daily_allowance():
     remaining = meta_get("remaining", MONTHLY_BUDGET)
-    return max(remaining - SETTLE_RESERVE, 0) / days_left
+    return max(remaining - SETTLE_RESERVE, 0) / days_to_reset()
 
 
 def day_key():
-    # "game day" rolls over at 17:00 UTC (~1 PM ET), i.e. before the evening slate, not mid-slate
-    return "spent_" + (now() - timedelta(hours=17)).strftime("%Y%m%d")
+    # budget "day" starts when the decision window opens, so the highest-priority polls get a fresh budget first
+    h, m = LOCK_DEADLINE_UTC.split(":")
+    start = int(h) * 60 + int(m) - LOCK_LEAD_MIN
+    return "spent_" + (now() - timedelta(minutes=start)).strftime("%Y%m%d")
+
+
+def _window_str():
+    h, m = LOCK_DEADLINE_UTC.split(":")
+    start = int(h) * 60 + int(m) - LOCK_LEAD_MIN
+    return f"{start // 60:02d}:{start % 60:02d}-{LOCK_DEADLINE_UTC}"
 
 
 def can_spend(kind):
@@ -287,7 +302,7 @@ def tick():
     """One scheduling decision. State lives in Mongo, so it survives Render sleeping; safe to call as often as you like."""
     interval, kind = due_interval()
     since = (time.time() - meta_get("last_poll_ts", 0)) / 60
-    if since < interval:
+    if since < interval - 1:   # 1 min tolerance: external cron ticks are never exactly on time
         return {"action": "wait", "kind": kind, "next_in_min": round(interval - since, 1)}
     ok, key = can_spend(kind)
     meta_set("last_poll_ts", time.time())
@@ -450,7 +465,7 @@ def diag_locks(days: int = 14):
 @app.get("/budget")
 def budget():
     key = day_key()
-    return {"window_poll_min": WINDOW_POLL_MIN, "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": meta_get(key, 0),
+    return {"decision_window_utc": _window_str(), "decision_poll_min": DECISION_POLL_MIN, "game_day": key, "days_to_reset": round(days_to_reset(), 2), "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": meta_get(key, 0),
             "daily_allowance": round(daily_allowance(), 1), "poll_cost": POLL_COST}
 
 
@@ -462,7 +477,8 @@ def diag_polls(days: int = 7):
     by_day = {}
     for r in rows:
         d = by_day.setdefault(r["ts"].strftime("%m-%d"), {})
-        d[r["action"]] = d.get(r["action"], 0) + 1
+        a = r["action"] + (":" + r["kind"] if r.get("kind") else "")
+        d[a] = d.get(a, 0) + 1
     polled = [r["ts"] for r in rows if r["action"] in ("polled", "manual")]
     gaps = [{"from": a.isoformat(), "to": b.isoformat(), "minutes": round((b - a).total_seconds() / 60)}
             for a, b in zip(polled, polled[1:]) if (b - a).total_seconds() > 3 * 3600]
@@ -475,7 +491,8 @@ def diag_polls(days: int = 7):
         games.append({"game": f'{e["away"]}@{e["home"]}', "tip_utc": e["commence"].isoformat(),
                       "snaps_in_lock_window": w,
                       "last_snap_min_before_tip": round((e["commence"] - last["ts"]).total_seconds() / 60) if last else None})
-    return {"days": days, "poll_log_since": rows[0]["ts"].isoformat() if rows else None,
+    lp = meta_get("last_poll_ts", 0)
+    return {"last_poll_utc": datetime.fromtimestamp(lp, timezone.utc).isoformat() if lp else None, "days": days, "poll_log_since": rows[0]["ts"].isoformat() if rows else None,
             "per_day": by_day, "startups": sum(r["action"] == "startup" for r in rows),
             "gaps_over_3h": gaps[-20:], "games_checked": len(games),
             "games_without_window_snaps": [g for g in games if g["snaps_in_lock_window"] == 0][-30:]}
