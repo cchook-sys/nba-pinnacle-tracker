@@ -332,7 +332,11 @@ def tick_all():
     out = tick()
     if time.time() - meta_get("last_settle_ts", 0) >= 3 * 3600:
         meta_set("last_settle_ts", time.time())
-        out["settled"] = settle()
+        try:
+            out["settled"] = settle()
+        except Exception as e:
+            log_poll("error", kind="settle", error=clean(e))
+            out["settle_error"] = clean(e)
     return out
 
 
@@ -356,7 +360,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "1.7", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
