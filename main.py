@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.5 (budget day starts at the decision window; quota reset day configurable)
+"""NBA Pinnacle odds-movement tracker  v1.6 (visible poll errors, retry after failure, API key scrubbed from logs)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -7,7 +7,7 @@ Built-in lessons from the MLB tracker:
   - CLV is tracked from day one; edge claim needs n>=MIN_N and Wilson LB > -110 breakeven
   - HEAD supported on "/" (UptimeRobot), credit-budget governor for the free API tier
 """
-import os, math, threading, time, logging
+import os, re, math, threading, time, logging
 from datetime import datetime, timedelta, timezone
 import requests
 from fastapi import FastAPI, Header, HTTPException
@@ -54,6 +54,11 @@ app.add_middleware(CORSMiddleware, allow_origins=[ALLOW_ORIGIN], allow_methods=[
 
 def now():
     return datetime.now(timezone.utc)
+
+
+def clean(e):
+    """Error text safe to store/expose: never leak the Odds API key."""
+    return re.sub(r"apiKey=[^&\s'\"]*", "apiKey=***", str(e))[:300]
 
 
 def log_poll(action, **kw):
@@ -138,7 +143,8 @@ def poll_odds():
     r = requests.get(BASE + "/odds", timeout=20, params={
         "apiKey": API_KEY, "bookmakers": "pinnacle", "markets": MARKETS, "oddsFormat": "decimal"})
     note_credits(r)
-    r.raise_for_status()
+    if r.status_code != 200:
+        raise RuntimeError(f"odds api {r.status_code}: {r.text[:200]}")
     t, n = now(), 0
     for ev in r.json():
         commence = datetime.fromisoformat(ev["commence_time"].replace("Z", "+00:00"))
@@ -239,7 +245,8 @@ def settle():
         return 0
     r = requests.get(BASE + "/scores", timeout=20, params={"apiKey": API_KEY, "daysFrom": 3})
     note_credits(r)
-    r.raise_for_status()
+    if r.status_code != 200:
+        raise RuntimeError(f"odds api scores {r.status_code}: {r.text[:200]}")
     done = {e["id"]: e for e in r.json() if e.get("completed") and e.get("scores")}
     n = 0
     for p in open_picks:
@@ -309,7 +316,13 @@ def tick():
     if not ok:
         log_poll("skipped_budget", kind=kind, remaining=meta_get("remaining"), allowance=round(daily_allowance(), 1))
         return {"action": "skipped_budget", "kind": kind}
-    n = poll_odds()
+    try:
+        n = poll_odds()
+    except Exception as e:
+        meta_set("last_poll_ts", time.time() - max(interval - 5, 0) * 60)   # retry in ~5 min, not a full interval
+        log_poll("error", kind=kind, error=clean(e))
+        log.exception("poll failed: %s", clean(e))
+        return {"action": "error", "kind": kind, "error": clean(e)}
     meta_set(key, meta_get(key, 0) + POLL_COST)
     log_poll("polled", kind=kind, snapshots=n, remaining=meta_get("remaining"))
     return {"action": "polled", "kind": kind, "snapshots": n}
@@ -329,7 +342,7 @@ def scheduler():
             tick_all()
         except Exception as e:
             log.exception("scheduler error: %s", e)
-            log_poll("error", error=str(e)[:200])
+            log_poll("error", error=clean(e))
         time.sleep(60)
 
 
@@ -492,7 +505,9 @@ def diag_polls(days: int = 7):
                       "snaps_in_lock_window": w,
                       "last_snap_min_before_tip": round((e["commence"] - last["ts"]).total_seconds() / 60) if last else None})
     lp = meta_get("last_poll_ts", 0)
-    return {"last_poll_utc": datetime.fromtimestamp(lp, timezone.utc).isoformat() if lp else None, "days": days, "poll_log_since": rows[0]["ts"].isoformat() if rows else None,
+    errs = [{"ts": r["ts"].isoformat(), "kind": r.get("kind"), "error": clean(r.get("error", ""))}
+            for r in plog.find({"action": "error"}, {"_id": 0}).sort("ts", -1).limit(8)]
+    return {"recent_errors": errs, "last_poll_utc": datetime.fromtimestamp(lp, timezone.utc).isoformat() if lp else None, "days": days, "poll_log_since": rows[0]["ts"].isoformat() if rows else None,
             "per_day": by_day, "startups": sum(r["action"] == "startup" for r in rows),
             "gaps_over_3h": gaps[-20:], "games_checked": len(games),
             "games_without_window_snaps": [g for g in games if g["snaps_in_lock_window"] == 0][-30:]}
