@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.7 (visible poll errors, retry after failure, API key scrubbed, /poll?key= debug)
+"""NBA Pinnacle odds-movement tracker  v1.8 (visible poll errors, retry after failure, API key scrubbed, /poll?key= debug, /health alert)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -320,10 +320,14 @@ def tick():
         n = poll_odds()
     except Exception as e:
         meta_set("last_poll_ts", time.time() - max(interval - 5, 0) * 60)   # retry in ~5 min, not a full interval
+        meta_set("consec_err", meta_get("consec_err", 0) + 1)
+        meta_set("last_err", clean(e))
         log_poll("error", kind=kind, error=clean(e))
         log.exception("poll failed: %s", clean(e))
         return {"action": "error", "kind": kind, "error": clean(e)}
     meta_set(key, meta_get(key, 0) + POLL_COST)
+    meta_set("consec_err", 0)
+    meta_set("last_ok_ts", time.time())
     log_poll("polled", kind=kind, snapshots=n, remaining=meta_get("remaining"))
     return {"action": "polled", "kind": kind, "snapshots": n}
 
@@ -360,7 +364,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "1.7", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "1.8", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -517,6 +521,18 @@ def diag_polls(days: int = 7):
             "games_without_window_snaps": [g for g in games if g["snaps_in_lock_window"] == 0][-30:]}
 
 
+@app.api_route("/health", methods=["GET", "HEAD"])
+def health():
+    """Point an uptime monitor here: returns 503 after 2 consecutive failed polls (e.g. invalid API key), so you get an email."""
+    n = meta_get("consec_err", 0)
+    ts = meta_get("last_ok_ts", 0)
+    body = {"ok": n < 2, "consecutive_errors": n, "last_ok_utc": datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else None,
+            "last_error": meta_get("last_err")}
+    if n >= 2:
+        raise HTTPException(503, detail=body)
+    return body
+
+
 @app.api_route("/tick", methods=["GET", "POST"])
 def tick_route(key: str = "", x_cron_secret: str = Header(default="")):
     """Call this from an external cron (GitHub Actions). It wakes the service and decides whether to spend credits."""
@@ -533,10 +549,14 @@ def manual_poll(key: str = "", x_cron_secret: str = Header(default="")):
     try:
         n = poll_odds()
     except Exception as e:
+        meta_set("consec_err", meta_get("consec_err", 0) + 1)
+        meta_set("last_err", clean(e))
         log_poll("error", kind="manual", error=clean(e))
         return {"action": "error", "error": clean(e), "remaining": meta_get("remaining")}
     k = day_key()
     meta_set(k, meta_get(k, 0) + POLL_COST)
     meta_set("last_poll_ts", time.time())
+    meta_set("consec_err", 0)
+    meta_set("last_ok_ts", time.time())
     log_poll("manual", snapshots=n, remaining=meta_get("remaining"))
     return {"action": "polled", "snapshots": n, "settled": settle(), "remaining": meta_get("remaining")}
