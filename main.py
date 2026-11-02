@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.6 (visible poll errors, retry after failure, API key scrubbed from logs)
+"""NBA Pinnacle odds-movement tracker  v1.7 (visible poll errors, retry after failure, API key scrubbed, /poll?key= debug)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -522,12 +522,17 @@ def tick_route(key: str = "", x_cron_secret: str = Header(default="")):
 
 
 @app.api_route("/poll", methods=["GET", "POST"])
-def manual_poll(x_cron_secret: str = Header(default="")):
-    if not CRON_SECRET or x_cron_secret != CRON_SECRET:
+def manual_poll(key: str = "", x_cron_secret: str = Header(default="")):
+    """Forced poll for debugging: open /poll?key=YOUR_CRON_SECRET in a browser; shows the real error if the API call fails."""
+    if not CRON_SECRET or CRON_SECRET not in (key, x_cron_secret):
         raise HTTPException(403, "forbidden")
-    n = poll_odds()
+    try:
+        n = poll_odds()
+    except Exception as e:
+        log_poll("error", kind="manual", error=clean(e))
+        return {"action": "error", "error": clean(e), "remaining": meta_get("remaining")}
     k = day_key()
     meta_set(k, meta_get(k, 0) + POLL_COST)
     meta_set("last_poll_ts", time.time())
     log_poll("manual", snapshots=n, remaining=meta_get("remaining"))
-    return {"snapshots": n, "settled": settle()}
+    return {"action": "polled", "snapshots": n, "settled": settle(), "remaining": meta_get("remaining")}
