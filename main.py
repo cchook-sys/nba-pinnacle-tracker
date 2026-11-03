@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.8 (visible poll errors, retry after failure, API key scrubbed, /poll?key= debug, /health alert)
+"""NBA Pinnacle odds-movement tracker  v1.9 (per-kind budgets, morning open-line capture, idle outside windows)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -32,7 +32,8 @@ WINDOW_POLL_MIN = int(os.getenv("WINDOW_POLL_MIN", "15"))   # poll cadence while
 # So picks are decided in a window ending at LOCK_DEADLINE_UTC, hours before tip-off, not near tip-off.
 LOCK_DEADLINE_UTC = os.getenv("LOCK_DEADLINE_UTC", "14:15")   # 22:15 Taiwan: leaves ~15 min to place the order
 LOCK_LEAD_MIN = int(os.getenv("LOCK_LEAD_MIN", "60"))         # decision window = deadline-60min .. deadline
-DECISION_POLL_MIN = int(os.getenv("DECISION_POLL_MIN", "10"))
+DECISION_POLL_MIN = int(os.getenv("DECISION_POLL_MIN", "15"))      # 15 fits a 500-credit plan; use 10 on a bigger plan
+BASELINE_POLL_MIN = int(os.getenv("BASELINE_POLL_MIN", "240"))   # morning polls that record tonight's opening lines
 CLOSE_LEAD_MIN, CLOSE_POLL_MIN = 25, 20                       # closing-line snapshots (for CLV) just before tip-off
 STEAM = {"spread": 1.0, "total": 1.5}      # initial thresholds (points vs opening)
 MIN_N = 30
@@ -111,10 +112,12 @@ def _window_str():
     return f"{start // 60:02d}:{start % 60:02d}-{LOCK_DEADLINE_UTC}"
 
 
+SHARE = {"decision": 0.55, "baseline": 0.30, "close": 0.15}   # split of the daily allowance; kinds never starve each other
+
+
 def can_spend(kind):
-    key = day_key()
-    allow = daily_allowance()
-    cap = allow * {"decision": 1.5, "close": 1.2}.get(kind, 0.3)   # priority: decision window > closing line > baseline
+    key = f"{day_key()}_{kind}"
+    cap = daily_allowance() * 1.3 * SHARE.get(kind, 0.1)
     ok = meta_get(key, 0) + POLL_COST <= cap and meta_get("remaining", MONTHLY_BUDGET) - POLL_COST > SETTLE_RESERVE
     return ok, key
 
@@ -297,12 +300,14 @@ def due_interval():
     t = now()
     h, m = _dl()
     dl = t.replace(hour=h, minute=m, second=0, microsecond=0)
-    if dl - timedelta(minutes=LOCK_LEAD_MIN) <= t <= dl:
+    start = dl - timedelta(minutes=LOCK_LEAD_MIN)
+    if start <= t <= dl:
         return DECISION_POLL_MIN, "decision"
     if events.count_documents({"commence": {"$gt": t, "$lte": t + timedelta(minutes=CLOSE_LEAD_MIN)}}):
         return CLOSE_POLL_MIN, "close"
-    soon = events.count_documents({"commence": {"$gt": t, "$lte": t + timedelta(hours=24)}})
-    return (180, "baseline") if soon else (360, "baseline")
+    if dl - timedelta(hours=11) <= t < start:        # ~TW 10:15-21:15: record tonight's opening lines hours before the decision window
+        return BASELINE_POLL_MIN, "baseline"
+    return 10 ** 6, "idle"                           # nothing useful to fetch: save credits
 
 
 def tick():
@@ -364,7 +369,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "1.8", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "1.9", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -486,7 +491,7 @@ def diag_locks(days: int = 14):
 @app.get("/budget")
 def budget():
     key = day_key()
-    return {"decision_window_utc": _window_str(), "decision_poll_min": DECISION_POLL_MIN, "game_day": key, "days_to_reset": round(days_to_reset(), 2), "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": meta_get(key, 0),
+    return {"decision_window_utc": _window_str(), "decision_poll_min": DECISION_POLL_MIN, "game_day": key, "days_to_reset": round(days_to_reset(), 2), "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": sum(meta_get(f"{key}_{k}", 0) for k in ("decision", "baseline", "close", "manual")),
             "daily_allowance": round(daily_allowance(), 1), "poll_cost": POLL_COST}
 
 
@@ -553,7 +558,7 @@ def manual_poll(key: str = "", x_cron_secret: str = Header(default="")):
         meta_set("last_err", clean(e))
         log_poll("error", kind="manual", error=clean(e))
         return {"action": "error", "error": clean(e), "remaining": meta_get("remaining")}
-    k = day_key()
+    k = day_key() + "_manual"
     meta_set(k, meta_get(k, 0) + POLL_COST)
     meta_set("last_poll_ts", time.time())
     meta_set("consec_err", 0)
