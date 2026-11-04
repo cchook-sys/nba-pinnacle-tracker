@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v1.9 (per-kind budgets, morning open-line capture, idle outside windows)
+"""NBA Pinnacle odds-movement tracker  v2.0 (open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -33,6 +33,9 @@ WINDOW_POLL_MIN = int(os.getenv("WINDOW_POLL_MIN", "15"))   # poll cadence while
 LOCK_DEADLINE_UTC = os.getenv("LOCK_DEADLINE_UTC", "14:15")   # 22:15 Taiwan: leaves ~15 min to place the order
 LOCK_LEAD_MIN = int(os.getenv("LOCK_LEAD_MIN", "60"))         # decision window = deadline-60min .. deadline
 DECISION_POLL_MIN = int(os.getenv("DECISION_POLL_MIN", "15"))      # 15 fits a 500-credit plan; use 10 on a bigger plan
+OPEN_HUNT_START_UTC = os.getenv("OPEN_HUNT_START_UTC", "05:30")   # 13:30 Taiwan: when the next slate's lines are expected to appear
+OPEN_HUNT_MIN = int(os.getenv("OPEN_HUNT_MIN", "150"))           # hunt for 2.5h ...
+OPEN_POLL_MIN = int(os.getenv("OPEN_POLL_MIN", "30"))            # ... polling every 30 min until the lines show up
 BASELINE_POLL_MIN = int(os.getenv("BASELINE_POLL_MIN", "240"))   # morning polls that record tonight's opening lines
 CLOSE_LEAD_MIN, CLOSE_POLL_MIN = 25, 20                       # closing-line snapshots (for CLV) just before tip-off
 STEAM = {"spread": 1.0, "total": 1.5}      # initial thresholds (points vs opening)
@@ -112,12 +115,12 @@ def _window_str():
     return f"{start // 60:02d}:{start % 60:02d}-{LOCK_DEADLINE_UTC}"
 
 
-SHARE = {"decision": 0.55, "baseline": 0.30, "close": 0.15}   # split of the daily allowance; kinds never starve each other
+SHARE = {"decision": 0.50, "open": 0.15, "baseline": 0.20, "close": 0.15}   # split of the daily allowance; kinds never starve each other
 
 
 def can_spend(kind):
     key = f"{day_key()}_{kind}"
-    cap = daily_allowance() * 1.3 * SHARE.get(kind, 0.1)
+    cap = float(os.getenv("CAP_" + kind.upper(), "0") or 0) or daily_allowance() * 1.3 * SHARE.get(kind, 0.1)   # CAP_OPEN=12 etc. overrides
     ok = meta_get(key, 0) + POLL_COST <= cap and meta_get("remaining", MONTHLY_BUDGET) - POLL_COST > SETTLE_RESERVE
     return ok, key
 
@@ -305,6 +308,10 @@ def due_interval():
         return DECISION_POLL_MIN, "decision"
     if events.count_documents({"commence": {"$gt": t, "$lte": t + timedelta(minutes=CLOSE_LEAD_MIN)}}):
         return CLOSE_POLL_MIN, "close"
+    oh, om = OPEN_HUNT_START_UTC.split(":")
+    o0 = t.replace(hour=int(oh), minute=int(om), second=0, microsecond=0)
+    if o0 <= t < o0 + timedelta(minutes=OPEN_HUNT_MIN):
+        return OPEN_POLL_MIN, "open"
     if dl - timedelta(hours=11) <= t < start:        # ~TW 10:15-21:15: record tonight's opening lines hours before the decision window
         return BASELINE_POLL_MIN, "baseline"
     return 10 ** 6, "idle"                           # nothing useful to fetch: save credits
@@ -369,7 +376,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "1.9", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.0", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -491,7 +498,7 @@ def diag_locks(days: int = 14):
 @app.get("/budget")
 def budget():
     key = day_key()
-    return {"decision_window_utc": _window_str(), "decision_poll_min": DECISION_POLL_MIN, "game_day": key, "days_to_reset": round(days_to_reset(), 2), "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": sum(meta_get(f"{key}_{k}", 0) for k in ("decision", "baseline", "close", "manual")),
+    return {"decision_window_utc": _window_str(), "decision_poll_min": DECISION_POLL_MIN, "game_day": key, "days_to_reset": round(days_to_reset(), 2), "remaining": meta_get("remaining", MONTHLY_BUDGET), "spent_today": sum(meta_get(f"{key}_{k}", 0) for k in ("decision", "open", "baseline", "close", "manual")),
             "daily_allowance": round(daily_allowance(), 1), "poll_cost": POLL_COST}
 
 
@@ -524,6 +531,24 @@ def diag_polls(days: int = 7):
             "per_day": by_day, "startups": sum(r["action"] == "startup" for r in rows),
             "gaps_over_3h": gaps[-20:], "games_checked": len(games),
             "games_without_window_snaps": [g for g in games if g["snaps_in_lock_window"] == 0][-30:]}
+
+
+@app.get("/diagnostics/open")
+def diag_open(limit: int = 40):
+    """When did each game first show up in the feed? 'previous_poll_utc'..'first_seen_utc' brackets the true posting time."""
+    polls = sorted(r["ts"] for r in plog.find({"action": {"$in": ["polled", "manual"]}}, {"ts": 1, "_id": 0}))
+    out = []
+    for e in events.find({}).sort("commence", -1).limit(limit):
+        o = e.get("open_ts")
+        if not o:
+            continue
+        prev = max((x for x in polls if x < o), default=None)
+        out.append({"game": f'{e["away"]}@{e["home"]}', "tip_tw": (e["commence"] + timedelta(hours=8)).strftime("%m-%d %H:%M"),
+                    "first_seen_tw": (o + timedelta(hours=8)).strftime("%m-%d %H:%M"),
+                    "hours_before_tip": round((e["commence"] - o).total_seconds() / 3600, 1),
+                    "previous_poll_tw": (prev + timedelta(hours=8)).strftime("%m-%d %H:%M") if prev else None,
+                    "uncertainty_min": round((o - prev).total_seconds() / 60) if prev else None})
+    return out
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])
