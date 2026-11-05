@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.0 (open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.1 (no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -335,7 +335,7 @@ def tick():
         meta_set("consec_err", meta_get("consec_err", 0) + 1)
         meta_set("last_err", clean(e))
         log_poll("error", kind=kind, error=clean(e))
-        log.exception("poll failed: %s", clean(e))
+        log.error("poll failed: %s", clean(e))
         return {"action": "error", "kind": kind, "error": clean(e)}
     meta_set(key, meta_get(key, 0) + POLL_COST)
     meta_set("consec_err", 0)
@@ -361,7 +361,7 @@ def scheduler():
         try:
             tick_all()
         except Exception as e:
-            log.exception("scheduler error: %s", e)
+            log.error("scheduler error: %s", clean(e))
             log_poll("error", error=clean(e))
         time.sleep(60)
 
@@ -376,7 +376,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.0", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.1", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
