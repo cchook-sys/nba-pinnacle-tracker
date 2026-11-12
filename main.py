@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.1 (no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.2 (CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -290,12 +290,17 @@ def bucket(rows):
     pu = sum(r["result"] == "push" for r in rows)
     n = w + l
     cl = [r["clv_pts"] for r in rows if r.get("clv_pts") is not None]
+    mean = sum(cl) / len(cl) if cl else None
+    sd = math.sqrt(sum((c - mean) ** 2 for c in cl) / (len(cl) - 1)) if len(cl) > 1 else None
+    se = sd / math.sqrt(len(cl)) if sd else None
     lb = wilson_lb(w, n)
     return {"n": n, "wins": w, "losses": l, "pushes": pu,
             "win_rate": round(w / n, 3) if n else None, "wilson_lb": round(lb, 3),
             "edge_claim": bool(n >= MIN_N and lb > BREAKEVEN),
             "avg_clv_pts": round(sum(cl) / len(cl), 2) if cl else None,
-            "clv_positive_rate": round(sum(c > 0 for c in cl) / len(cl), 3) if cl else None}
+            "clv_positive_rate": round(sum(c > 0 for c in cl) / len(cl), 3) if cl else None,
+            "clv_sd": round(sd, 2) if sd else None, "clv_se": round(se, 2) if se else None,
+            "clv_t": round(mean / se, 2) if se else None}
 
 
 # ---------- scheduler ----------
@@ -376,7 +381,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.1", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.2", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
