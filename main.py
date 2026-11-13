@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.3 (/analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.4 (away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -131,12 +131,15 @@ def parse_event(ev):
     bk = next((b for b in ev.get("bookmakers", []) if b["key"] == "pinnacle"), None)
     if not bk:
         return None
-    out = {"spread": None, "spread_price": None, "total": None, "over_price": None, "under_price": None}
+    out = {"spread": None, "spread_price": None, "spread_price_away": None, "total": None, "over_price": None, "under_price": None}
     for m in bk["markets"]:
         if m["key"] == "spreads":
             o = next((x for x in m["outcomes"] if x["name"] == ev["home_team"]), None)
             if o:
                 out["spread"], out["spread_price"] = o["point"], o["price"]
+            a = next((x for x in m["outcomes"] if x["name"] == ev["away_team"]), None)
+            if a:
+                out["spread_price_away"] = a["price"]
         elif m["key"] == "totals":
             for o in m["outcomes"]:
                 if o["name"] == "Over":
@@ -392,7 +395,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.3", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.4", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
