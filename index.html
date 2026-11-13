@@ -85,6 +85,9 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 .tlx small{color:var(--mu);display:block}
 .tl>div.rec{border-color:var(--gr);box-shadow:0 0 0 1px var(--gr)}.tl>div.rec.pend{border-color:var(--or);box-shadow:0 0 0 1px var(--or)}.tl>div.dim{opacity:.4}
 .tl .tag{display:block;font-style:normal;font-size:12px;font-weight:700;margin-top:3px;color:var(--gr)}.tl .pend .tag{color:var(--or)}
+.evf{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:12px 0}.evf label{color:var(--mu);font-size:12px}
+.evf input,.evf select{display:block;width:100%;margin-top:4px;background:var(--p2);border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:8px 10px;font:inherit;font-size:15px}
+.evr{background:var(--p2);border:1px solid var(--ln);border-radius:12px;padding:14px 16px;line-height:1.9}.evr b.pos{color:var(--gr)}.evr b.neg{color:var(--rd)}
 @media(max-width:860px){.main{zoom:1;min-height:0}.g4{grid-template-columns:repeat(2,1fr)}.dp{position:static;max-height:none}.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
 </style>
 </head>
@@ -96,7 +99,7 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
     <button class="b gn" onclick="parlay()">🎯 過關分析</button><button class="b" onclick="gl.showModal()" aria-label="術語說明">?</button><button class="b bl" id="rb" onclick="load()">↺ 更新盤口</button>
   </div>
 </header>
-<div class="tabs"><button class="tab on" data-t="1">📡 今日盤口</button><button class="tab" data-t="2">📊 昨日結算</button><button class="tab" data-t="3">🌙 賽前總結</button><span id="dl" class="note" style="margin-left:auto"></span><span id="ago" style="margin-left:14px"></span></div>
+<div class="tabs"><button class="tab on" data-t="1">📡 今日盤口</button><button class="tab" data-t="2">📊 昨日結算</button><button class="tab" data-t="3">🌙 賽前總結</button><button class="tab" data-t="4">💰 運彩 EV</button><span id="dl" class="note" style="margin-left:auto"></span><span id="ago" style="margin-left:14px"></span></div>
 <div id="v"></div><div id="toast" class="toast" role="status"></div>
 
 <dialog id="pz"><form method="dialog"><button class="b" style="float:right">✕</button></form><h3 style="margin-top:0">⚡ 過關建議</h3><div id="pzb"></div></dialog>
@@ -150,7 +153,49 @@ async function load(){
   $("#k4").textContent=S.all.n?Math.round(S.all.win_rate*100)+"%":"—";$("#k5").textContent=S.all.n?S.all.n+"場":"";
   render();
 }
-function render(){$("#v").innerHTML="";[null,today,settled,pre][tab]()}
+const Phi=x=>{const t=1/(1+0.2316419*Math.abs(x)),d=0.3989423*Math.exp(-x*x/2),p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return x>0?1-p:p};
+const PhiInv=p=>{let lo=-8,hi=8;for(let k=0;k<60;k++){const m=(lo+hi)/2;Phi(m)<p?lo=m:hi=m}return(lo+hi)/2};
+let E={gid:null,mk:"spread",side:"home",line:"",odds:"1.75"};
+function evr(){
+  const gs=G.filter(g=>g.latest&&new Date(g.commence)>Date.now()).sort((a,b)=>new Date(a.commence)-new Date(b.commence));
+  if(!gs.find(g=>g.id===E.gid))E.gid=gs[0]&&gs[0].id;
+  const sides=E.mk==="spread"?[["home","主隊"],["away","客隊"]]:[["over","大分"],["under","小分"]];
+  if(!sides.find(x=>x[0]===E.side))E.side=sides[0][0];
+  $("#v").innerHTML=`<div class="box"><h3 style="margin-top:0">💰 運彩 EV 試算</h3>
+  <div class="note">輸入店裡的盤口和賠率，用 Pinnacle 去抽水後的機率當公平價格，估算這一注的期望值（EV）。這不是預測誰會贏，只是比較「店裡的價格」和「Pinnacle 的價格」。</div>
+  ${gs.length?`<div class="evf">
+  <label>比賽<select onchange="E.gid=this.value;evc()">${gs.map(g=>`<option value="${g.id}" ${g.id===E.gid?"selected":""}>${g.away} @ ${g.home}（台灣 ${twt(g.commence,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}）</option>`).join("")}</select></label>
+  <label>盤口<select onchange="E.mk=this.value;evr()"><option value="spread" ${E.mk==="spread"?"selected":""}>讓分</option><option value="total" ${E.mk==="total"?"selected":""}>大小分</option></select></label>
+  <label>下注方向<select onchange="E.side=this.value;evc()">${sides.map(([k,n])=>`<option value="${k}" ${k===E.side?"selected":""}>${n}</option>`).join("")}</select></label>
+  <label>${E.mk==="spread"?"店裡該方向的讓分數（主隊 -4.5 填 -4.5；客隊 +4.5 填 4.5）":"店裡的總分線（例如 220.5）"}<input type="number" step="0.5" value="${E.line}" oninput="E.line=this.value;evc()"></label>
+  <label>店裡賠率（小數，例如 1.75）<input type="number" step="0.01" value="${E.odds}" oninput="E.odds=this.value;evc()"></label></div>
+  <div id="evo" class="evr"></div>`:'<div class="note" style="margin-top:10px">目前沒有可試算的場次（需要有最新盤口的未開賽比賽）。</div>'}
+  <div class="note" style="margin-top:10px">限制：① 用的是 Pinnacle「現在」的盤口，不是收盤盤；② 店裡盤口和 Pinnacle 不同時，用常態分布換算（讓分標準差 12、總分 18），差距越大誤差越大；③ 整數盤口的走水沒有計入；④ 估算本身有誤差，EV 只有明顯為正（建議至少 +3%）且盤口差距在 1 點內，才有參考價值。</div></div>`;
+  if(gs.length)evc();
+}
+function evc(){
+  const g=G.find(x=>x.id===E.gid),o=$("#evo");if(!g||!g.latest||!o)return;
+  const l=g.latest,line=parseFloat(E.line),odds=parseFloat(E.odds);
+  if(isNaN(line)||isNaN(odds)||odds<=1){o.innerHTML='<span class="note">請輸入店裡的盤口和賠率。</span>';return}
+  let pAt,pf,pin,gap,note="";
+  if(E.mk==="spread"){
+    const oh=l.spread_price,oa=l.spread_price_away,ph=oa?(1/oh)/(1/oh+1/oa):(1/oh)/1.045,z=PhiInv(ph),Lp=l.spread,Lh=E.side==="home"?line:-line;
+    const phTW=Phi(z+(Lh-Lp)/12);pAt=E.side==="home"?phTW:1-phTW;pf=E.side==="home"?ph:1-ph;gap=Math.abs(Lh-Lp);
+    pin=`Pinnacle 讓分（主）${f(Lp)}，主隊 ${fP(oh)} / 客隊 ${oa?fP(oa):"未記錄"}`;if(!oa)note="（客隊賠率尚未記錄，用標準抽水估算，下一次輪詢後會有完整資料）"
+  }else{
+    const oo=l.over_price,ou=l.under_price,po=(1/oo)/(1/oo+1/ou),z=PhiInv(po),Tp=l.total;
+    const poTW=Phi(z+(Tp-line)/18);pAt=E.side==="over"?poTW:1-poTW;pf=E.side==="over"?po:1-po;gap=Math.abs(Tp-line);
+    pin=`Pinnacle 總分 ${Tp}，大 ${fP(oo)} / 小 ${fP(ou)}`
+  }
+  const ev=pAt*odds-1,be=1/odds,edge=pAt-be,cls=ev>=0.03?"pos":ev<0?"neg":"";
+  o.innerHTML=`<div class="note">${pin}${note}</div>
+  Pinnacle 去抽水後（同一條線）這一邊的機率：<b>${(pf*100).toFixed(1)}%</b><br>
+  換算到你店裡的線之後：<b>${(pAt*100).toFixed(1)}%</b>（盤口差 ${gap.toFixed(1)} 點${gap>1?"，差距偏大，估算不可靠":""}）<br>
+  店裡賠率 ${odds} 的損益平衡機率：<b>${(be*100).toFixed(1)}%</b>　公平賠率：<b>${(1/pAt).toFixed(2)}</b><br>
+  機率差：<b class="${edge>=0?"pos":"neg"}">${edge>=0?"+":""}${(edge*100).toFixed(1)}%</b>　期望值 EV：<b class="${cls}">${ev>=0?"+":""}${(ev*100).toFixed(1)}%</b>
+  <div class="note">${ev>=0.03&&gap<=1?"EV 估算為正，但仍是估算值，請自行承擔風險。":ev>=0?"EV 只略為正或盤口差距大，不足以視為有優勢。":"以 Pinnacle 的價格來看，這一注的期望值為負。"}</div>`;
+}
+function render(){$("#v").innerHTML="";[null,today,settled,pre,ev][tab]()}
 
 function perf(){
   const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),W=r.filter(p=>p.result==="win"),L=r.filter(p=>p.result==="loss"),U=r.length-W.length-L.length,n=W.length+L.length;
