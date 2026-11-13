@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.2 (CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.3 (/analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -46,6 +46,7 @@ log = logging.getLogger("nba")
 logging.basicConfig(level=logging.INFO)
 db = MongoClient(MONGO_URI, tz_aware=True)["nba_tracker"]
 events, snaps, picks, diag, meta, plog = db.events, db.snaps, db.picks, db.diag, db.meta, db.polls
+results = db.results            # final scores of EVERY completed game (not only picked ones)
 plog.create_index("ts", expireAfterSeconds=14 * 86400)
 snaps.create_index([("event_id", ASCENDING), ("ts", ASCENDING)])
 snaps.create_index("ts", expireAfterSeconds=60 * 86400)     # keep M0 small
@@ -246,14 +247,24 @@ def clv(market, side, line, close):
 
 
 def settle():
-    open_picks = list(picks.find({"settled": False, "commence": {"$lt": now() - timedelta(hours=4)}}))
-    if not open_picks:
+    t = now()
+    open_picks = list(picks.find({"settled": False, "commence": {"$lt": t - timedelta(hours=4)}}))
+    have = {r["_id"] for r in results.find({}, {"_id": 1})}
+    unsynced = any(e["_id"] not in have for e in events.find(
+        {"commence": {"$lt": t - timedelta(hours=4), "$gt": t - timedelta(days=3)}}, {"_id": 1}))
+    need = unsynced and time.time() - meta_get("last_results_ts", 0) > 20 * 3600     # results-only sync: ~1 call (2 credits) a day
+    if not open_picks and not need:
         return 0
     r = requests.get(BASE + "/scores", timeout=20, params={"apiKey": API_KEY, "daysFrom": 3})
     note_credits(r)
     if r.status_code != 200:
         raise RuntimeError(f"odds api scores {r.status_code}: {r.text[:200]}")
     done = {e["id"]: e for e in r.json() if e.get("completed") and e.get("scores")}
+    meta_set("last_results_ts", time.time())
+    for eid, e in done.items():
+        sc = {x["name"]: float(x["score"]) for x in e["scores"]}
+        if e["home_team"] in sc and e["away_team"] in sc:
+            results.update_one({"_id": eid}, {"$set": {"home_score": sc[e["home_team"]], "away_score": sc[e["away_team"]], "ts": t}}, upsert=True)
     n = 0
     for p in open_picks:
         e = done.get(p["event_id"])
@@ -381,7 +392,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.2", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.3", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -486,6 +497,95 @@ def calibration():
         "diagnostic_vs_open / vs_close are NOT the official result; official result is graded at line_at_pick",
     ]
     out["lock_funnel"] = {k: diag.count_documents({"outcome": k}) for k in ("locked", "no_signal", "missed_window")}
+    return out
+
+
+def _mean_se(v):
+    n = len(v)
+    if n < 2:
+        return (v[0] if v else None), None, None
+    m = sum(v) / n
+    sd = math.sqrt(sum((x - m) ** 2 for x in v) / (n - 1))
+    se = sd / math.sqrt(n) if sd else None
+    return m, se, (m / se if se else None)
+
+
+def _wilson_ci(w, n, z=1.96):
+    if n == 0:
+        return None, None
+    p = w / n
+    c = (p + z * z / (2 * n)) / (1 + z * z / n)
+    m = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return round(c - m, 3), round(c + m, 3)
+
+
+@app.get("/analysis/momentum")
+def momentum(days: int = 30, max_gap_min: int = 90):
+    """Uses EVERY game (not just the few that crossed the pick threshold).
+    m1 = move from first-seen line to the decision-time line; m2 = move from decision to the last pre-tip line.
+    If early moves persist, m1 and m2 share a sign (CLV > 0). Also grades 'follow m1 at the decision line' where scores exist."""
+    t = now()
+    since = t - timedelta(days=days)
+    scores = {r["_id"]: (r["home_score"], r["away_score"]) for r in results.find({})}
+    for p in picks.find({"settled": True}, {"event_id": 1, "home_score": 1, "away_score": 1, "_id": 0}):
+        scores.setdefault(p["event_id"], (p["home_score"], p["away_score"]))
+    obs = {"spread": [], "total": []}
+    used = skipped = 0
+    for e in events.find({"commence": {"$gte": since, "$lt": t}}):
+        c = e["commence"]
+        dl = deadline_before(c)
+        ss = list(snaps.find({"event_id": e["_id"]}, {"_id": 0}).sort("ts", 1))
+        pre = [x for x in ss if x["ts"] <= dl]
+        post = [x for x in ss if dl < x["ts"] < c]
+        if len(ss) < 3 or not pre or not post or (dl - pre[-1]["ts"]).total_seconds() > max_gap_min * 60 \
+                or (c - post[-1]["ts"]).total_seconds() > max_gap_min * 60:
+            skipped += 1
+            continue
+        used += 1
+        op, dec, cl = ss[0], pre[-1], post[-1]
+        for mk in ("spread", "total"):
+            a, d, z = op.get(mk), dec.get(mk), cl.get(mk)
+            if None in (a, d, z):
+                continue
+            obs[mk].append({"m1": d - a, "m2": z - d, "line": d, "eid": e["_id"]})
+    TH = {"spread": [0.5, 1.0, 1.5, 2.0], "total": [0.5, 1.0, 1.5, 2.5]}
+    out = {"generated_at": t.isoformat(), "games_used": used, "games_skipped_no_decision_or_close_snapshot": skipped,
+           "max_gap_min": max_gap_min, "results_known_for_games": len(scores)}
+    for mk, rows in obs.items():
+        res_mk = {"n_all": len(rows)}
+        if len(rows) > 2:
+            x = [r["m1"] for r in rows]; y = [r["m2"] for r in rows]
+            mx, my = sum(x) / len(x), sum(y) / len(y)
+            sxx = sum((a - mx) ** 2 for a in x); syy = sum((b - my) ** 2 for b in y)
+            sxy = sum((a - mx) * (b - my) for a, b in zip(x, y))
+            r_ = sxy / math.sqrt(sxx * syy) if sxx and syy else None
+            res_mk["corr_m1_m2"] = round(r_, 3) if r_ is not None else None
+            res_mk["corr_t"] = round(r_ * math.sqrt((len(x) - 2) / (1 - r_ ** 2)), 2) if r_ is not None and abs(r_) < 1 else None
+        by = {}
+        for th in TH[mk]:
+            sel = [r for r in rows if abs(r["m1"]) >= th]
+            clv = [r["m2"] * (1 if r["m1"] > 0 else -1) for r in sel]
+            m, se, tt = _mean_se(clv)
+            w = l = pu = 0
+            for r in sel:
+                sc = scores.get(r["eid"])
+                if not sc:
+                    continue
+                side = ("home" if r["m1"] < 0 else "away") if mk == "spread" else ("over" if r["m1"] > 0 else "under")
+                g = res(diff(mk, side, r["line"], sc[0], sc[1]))
+                w += g == "win"; l += g == "loss"; pu += g == "push"
+            lo, hi = _wilson_ci(w, w + l)
+            by[f">={th}"] = {"n": len(sel), "avg_clv": round(m, 2) if m is not None else None,
+                             "clv_se": round(se, 2) if se else None, "clv_t": round(tt, 2) if tt else None,
+                             "clv_positive_rate": round(sum(c > 0 for c in clv) / len(clv), 3) if clv else None,
+                             "hit": {"graded": w + l + pu, "wins": w, "losses": l, "pushes": pu,
+                                     "win_rate": round(w / (w + l), 3) if w + l else None, "wilson_95": [lo, hi]}}
+        res_mk["by_move_threshold"] = by
+        out[mk] = res_mk
+    out["notes"] = ["m1 = decision_line - first_seen_line, m2 = last_pre_tip_line - decision_line (home line for spread, total line for total)",
+                    "clv = m2 * sign(m1): positive means the line kept moving in the direction of the early move",
+                    "hit = following the early move at the decision-time line; breakeven 52.4% at -110, higher at Taiwan-lottery prices",
+                    "thresholds are exploratory (4 per market): trust corr_t first, treat the table as descriptive"]
     return out
 
 
