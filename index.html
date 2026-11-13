@@ -195,7 +195,7 @@ function evc(){
   機率差：<b class="${edge>=0?"pos":"neg"}">${edge>=0?"+":""}${(edge*100).toFixed(1)}%</b>　期望值 EV：<b class="${cls}">${ev>=0?"+":""}${(ev*100).toFixed(1)}%</b>
   <div class="note">${ev>=0.03&&gap<=1?"EV 估算為正，但仍是估算值，請自行承擔風險。":ev>=0?"EV 只略為正或盤口差距大，不足以視為有優勢。":"以 Pinnacle 的價格來看，這一注的期望值為負。"}</div>`;
 }
-function render(){$("#v").innerHTML="";[null,today,settled,pre,ev][tab]()}
+function render(){$("#v").innerHTML="";[null,today,settled,pre,evr][tab]()}
 
 function perf(){
   const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),W=r.filter(p=>p.result==="win"),L=r.filter(p=>p.result==="loss"),U=r.length-W.length-L.length,n=W.length+L.length;
