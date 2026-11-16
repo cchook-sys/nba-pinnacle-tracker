@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.4 (away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.5 (/diagnostics/spread_audit; v2.4: away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -395,7 +395,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.4", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.5", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -590,6 +590,24 @@ def momentum(days: int = 30, max_gap_min: int = 90):
                     "hit = following the early move at the decision-time line; breakeven 52.4% at -110, higher at Taiwan-lottery prices",
                     "thresholds are exploratory (4 per market): trust corr_t first, treat the table as descriptive"]
     return out
+
+
+@app.get("/diagnostics/spread_audit")
+def spread_audit(limit: int = 30, market: str = "spread"):
+    """Recompute every settled pick from its stored fields and check pick direction against the move; shows the raw scores so you can eyeball them."""
+    rows, bad = [], 0
+    for p in picks.find({"settled": True, "market": market}).sort("commence", -1).limit(limit):
+        hs, as_ = p.get("home_score"), p.get("away_score")
+        if hs is None or as_ is None:
+            continue
+        again = res(diff(p["market"], p["side"], p["line_at_pick"], hs, as_))
+        want = ("home" if p["delta"] < 0 else "away") if market == "spread" else ("over" if p["delta"] > 0 else "under")
+        ok_dir, ok_res = p["side"] == want, again == p.get("result")
+        bad += (not ok_dir) + (not ok_res)
+        rows.append(f'{(p["commence"] + timedelta(hours=8)).strftime("%m-%d %H:%M")} TW | {p["away"]} @ {p["home"]} | bet {p["side"]} line {p["line_at_pick"]} '
+                    f'(open {p["open_line"]}, close {p.get("close_line")}) | final away {as_:.0f} - home {hs:.0f} (home margin {hs - as_:+.0f}, total {hs + as_:.0f}) '
+                    f'| recorded {p.get("result")} / recomputed {again} | direction_ok {ok_dir}')
+    return {"checked": len(rows), "inconsistencies": bad, "rows": rows}
 
 
 @app.get("/diagnostics/locks")
