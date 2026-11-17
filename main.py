@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.5 (/diagnostics/spread_audit; v2.4: away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.6 (/diagnostics/line_bias; v2.5: /diagnostics/spread_audit; v2.4: away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -395,7 +395,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.5", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.6", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -608,6 +608,61 @@ def spread_audit(limit: int = 30, market: str = "spread"):
                     f'(open {p["open_line"]}, close {p.get("close_line")}) | final away {as_:.0f} - home {hs:.0f} (home margin {hs - as_:+.0f}, total {hs + as_:.0f}) '
                     f'| recorded {p.get("result")} / recomputed {again} | direction_ok {ok_dir}')
     return {"checked": len(rows), "inconsistencies": bad, "rows": rows}
+
+
+@app.get("/diagnostics/line_bias")
+def line_bias(days: int = 30, max_gap_min: int = 180):
+    """Are the stored lines calibrated against real results? For EVERY game with a final score:
+    spread: home_margin + home_line (>0 means the home side covered); total: points - total_line (>0 means over).
+    If the lines are sound the mean is near 0 (standard error about 12/sqrt(n) for spreads, 18/sqrt(n) for totals).
+    Split by games that did / did not become picks, to separate 'bad line data' from 'bad pick selection'."""
+    t = now()
+    since = t - timedelta(days=days)
+    scores = {r["_id"]: (r["home_score"], r["away_score"]) for r in results.find({})}
+    picked = set()
+    for p in picks.find({}, {"event_id": 1, "market": 1, "home_score": 1, "away_score": 1, "_id": 0}):
+        picked.add((p["event_id"], p["market"]))
+        if p.get("home_score") is not None:
+            scores.setdefault(p["event_id"], (p["home_score"], p["away_score"]))
+    rows = {"spread": [], "total": []}
+    for e in events.find({"commence": {"$gte": since, "$lt": t}}):
+        sc = scores.get(e["_id"])
+        if not sc:
+            continue
+        c = e["commence"]
+        dl = deadline_before(c)
+        ss = list(snaps.find({"event_id": e["_id"]}, {"_id": 0}).sort("ts", 1))
+        pre = [x for x in ss if x["ts"] <= dl]
+        post = [x for x in ss if dl < x["ts"] < c]
+        if not pre:
+            continue
+        dec = pre[-1]
+        cl = post[-1] if post and (c - post[-1]["ts"]).total_seconds() <= max_gap_min * 60 else None
+        hm, tp = sc[0] - sc[1], sc[0] + sc[1]
+        for mk in ("spread", "total"):
+            if dec.get(mk) is None:
+                continue
+            val = (lambda L: hm + L) if mk == "spread" else (lambda L: tp - L)
+            rows[mk].append({"first": val(ss[0][mk]) if ss[0].get(mk) is not None else None,
+                             "decision": val(dec[mk]),
+                             "close": val(cl[mk]) if cl and cl.get(mk) is not None else None,
+                             "picked": (e["_id"], mk) in picked})
+    out = {"days": days, "max_gap_min": max_gap_min, "games_with_scores": len({r for rr in rows.values() for r in range(0)}) or len(rows["spread"])}
+    for mk, rr in rows.items():
+        o = {}
+        for when in ("first", "decision", "close"):
+            for grp, f in (("all", lambda r: True), ("picked", lambda r: r["picked"]), ("not_picked", lambda r: not r["picked"])):
+                v = [r[when] for r in rr if r[when] is not None and f(r)]
+                m, se, tt = _mean_se(v)
+                dec_ = [x for x in v if x != 0]
+                o[f"{when}/{grp}"] = {"n": len(v), "mean": round(m, 2) if m is not None else None, "se": round(se, 2) if se else None,
+                                      "t": round(tt, 2) if tt else None,
+                                      "cover_rate": round(sum(x > 0 for x in dec_) / len(dec_), 3) if dec_ else None}
+        out[mk] = o
+    out["how_to_read"] = ["mean near 0 and |t| < 2: the stored lines agree with real results",
+                          "a large negative/positive mean for ALL games means the line data (or the score mapping) is suspect",
+                          "a bias only in 'picked' games means the problem is in how picks are selected, not in the data"]
+    return out
 
 
 @app.get("/diagnostics/locks")
