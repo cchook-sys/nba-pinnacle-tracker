@@ -1,4 +1,4 @@
-"""NBA Pinnacle odds-movement tracker  v2.6 (/diagnostics/line_bias; v2.5: /diagnostics/spread_audit; v2.4: away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
+"""NBA Pinnacle odds-movement tracker  v2.7 (out-of-sample follow-vs-fade test in /calibration; v2.6: /diagnostics/line_bias; v2.5: /diagnostics/spread_audit; v2.4: away spread price stored for EV tool; v2.3: /analysis/momentum: all-games analysis; results for every game; v2.2: CLV standard error and t-stat in /calibration; v2.1: no tracebacks in logs; open-line hunt window, /diagnostics/open, per-kind caps)
 FastAPI + MongoDB Atlas + The Odds API (Pinnacle only).
 Built-in lessons from the MLB tracker:
   - picks lock `line_at_pick` once and settle against it (settle_version=1 = honest data)
@@ -387,6 +387,7 @@ def scheduler():
 
 @app.on_event("startup")
 def _start():
+    oos_start()
     log_poll("startup")
     if ENABLE_SCHEDULER:
         threading.Thread(target=scheduler, daemon=True).start()
@@ -395,7 +396,7 @@ def _start():
 # ---------- routes ----------
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.6", "settle_version": SETTLE_VERSION}
+    return {"ok": True, "service": "nba-pinnacle-tracker", "version": "2.7", "settle_version": SETTLE_VERSION}
 
 
 @app.get("/games")
@@ -460,6 +461,18 @@ def _line(r):
     return "total:" + ("<220" if x < 220 else "220-230" if x < 230 else "230+")
 
 
+def oos_start():
+    """Start of the out-of-sample window for the post-hoc 'fade the move' hypothesis. Fixed once (first deploy of v2.7) so it cannot drift."""
+    v = os.getenv("OOS_START_UTC")
+    if v:
+        return datetime.fromisoformat(v)
+    ts = meta_get("oos_start_ts")
+    if not ts:
+        ts = time.time()
+        meta_set("oos_start_ts", ts)
+    return datetime.fromtimestamp(ts, timezone.utc)
+
+
 @app.get("/calibration")
 def calibration():
     """Weekly calibration report (paste this JSON into a conversation). Expanding window since the first honest pick."""
@@ -499,6 +512,23 @@ def calibration():
         "do not retune thresholds on buckets with n<min_n; prefer avg_clv_pts as the faster-converging signal",
         "diagnostic_vs_open / vs_close are NOT the official result; official result is graded at line_at_pick",
     ]
+    st = oos_start()
+    oos = [r for r in rows if r["locked_at"] >= st]
+
+    def _fl(w_, l_):
+        lo, hi = _wilson_ci(w_, w_ + l_)
+        return {"wins": w_, "losses": l_, "win_rate": round(w_ / (w_ + l_), 3) if w_ + l_ else None, "wilson_95": [lo, hi]}
+
+    def _side(rs):
+        w = sum(r["result"] == "win" for r in rs)
+        l = sum(r["result"] == "loss" for r in rs)
+        return {"n": w + l, "pushes": len(rs) - w - l, "follow": _fl(w, l), "fade": _fl(l, w)}
+
+    out["out_of_sample"] = {
+        "since_utc": st.isoformat(),
+        "note": "'fade' = the opposite side at the same line. It was suggested by the first ~26 spread picks (post-hoc), so only picks locked after since_utc are a fair test. Needs ~40+ spread picks; fade must beat 52.4% (Pinnacle) or ~57% (Taiwan lottery odds) to matter.",
+        "all": _side(oos), "spread": _side([r for r in oos if r["market"] == "spread"]),
+        "total": _side([r for r in oos if r["market"] == "total"])}
     out["lock_funnel"] = {k: diag.count_documents({"outcome": k}) for k in ("locked", "no_signal", "missed_window")}
     return out
 
