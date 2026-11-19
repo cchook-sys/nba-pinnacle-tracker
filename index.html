@@ -88,6 +88,7 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
 .evf{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:12px 0}.evf label{color:var(--mu);font-size:12px}
 .evf input,.evf select{display:block;width:100%;margin-top:4px;background:var(--p2);border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:8px 10px;font:inherit;font-size:15px}
 .evr{background:var(--p2);border:1px solid var(--ln);border-radius:12px;padding:14px 16px;line-height:1.9}.evr b.pos{color:var(--gr)}.evr b.neg{color:var(--rd)}
+.bar2{height:8px;background:var(--ln);border-radius:4px;overflow:hidden;margin:6px 0}.bar2 i{display:block;height:100%;background:var(--gr)}
 @media(max-width:860px){.main{zoom:1;min-height:0}.g4{grid-template-columns:repeat(2,1fr)}.dp{position:static;max-height:none}.main{grid-template-columns:1fr}.dp{display:none}.main.d .card:first-child{display:none}.main.d .dp{display:block}.back{display:inline-block}}
 </style>
 </head>
@@ -99,7 +100,7 @@ dt{font-weight:700;margin-top:8px}dd{margin:0;color:var(--mu)}
     <button class="b gn" onclick="parlay()">🎯 過關分析</button><button class="b" onclick="gl.showModal()" aria-label="術語說明">?</button><button class="b bl" id="rb" onclick="load()">↺ 更新盤口</button>
   </div>
 </header>
-<div class="tabs"><button class="tab on" data-t="1">📡 今日盤口</button><button class="tab" data-t="2">📊 昨日結算</button><button class="tab" data-t="3">🌙 賽前總結</button><button class="tab" data-t="4">💰 運彩 EV</button><span id="dl" class="note" style="margin-left:auto"></span><span id="ago" style="margin-left:14px"></span></div>
+<div class="tabs"><button class="tab on" data-t="1">📡 今日盤口</button><button class="tab" data-t="2">📊 昨日結算</button><button class="tab" data-t="3">🌙 賽前總結</button><button class="tab" data-t="4">💰 運彩 EV</button><button class="tab" data-t="5">📈 驗證</button><span id="dl" class="note" style="margin-left:auto"></span><span id="ago" style="margin-left:14px"></span></div>
 <div id="v"></div><div id="toast" class="toast" role="status"></div>
 
 <dialog id="pz"><form method="dialog"><button class="b" style="float:right">✕</button></form><h3 style="margin-top:0">⚡ 過關建議</h3><div id="pzb"></div></dialog>
@@ -195,7 +196,37 @@ function evc(){
   機率差：<b class="${edge>=0?"pos":"neg"}">${edge>=0?"+":""}${(edge*100).toFixed(1)}%</b>　期望值 EV：<b class="${cls}">${ev>=0?"+":""}${(ev*100).toFixed(1)}%</b>
   <div class="note">${ev>=0.03&&gap<=1?"EV 估算為正，但仍是估算值，請自行承擔風險。":ev>=0?"EV 只略為正或盤口差距大，不足以視為有優勢。":"以 Pinnacle 的價格來看，這一注的期望值為負。"}</div>`;
 }
-function render(){$("#v").innerHTML="";[null,today,settled,pre,evr][tab]()}
+const wl=(w,n)=>{if(!n)return[null,null];const z=1.96,p=w/n,c=(p+z*z/(2*n))/(1+z*z/n),m=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n))/(1+z*z/n);return[c-m,c+m]};
+const pc=x=>x==null?"–":(x*100).toFixed(1)+"%";
+async function ver(){
+  $("#v").innerHTML='<div class="box note">載入中…</div>';
+  let c;try{c=await j("/calibration")}catch(e){$("#v").innerHTML=`<div class="box">讀取失敗（${e.message}）。Render 服務可能正在啟動，稍後再按一次。</div>`;return}
+  const row=(name,b)=>{if(!b)return"";const[lo,hi]=wl(b.wins,b.wins+b.losses);return`<tr><td>${name}</td><td>${b.n}</td><td>${b.wins}-${b.losses}</td><td>${pc(b.win_rate)}</td><td>${pc(lo)} ~ ${pc(hi)}</td><td>${b.avg_clv_pts==null?"–":f(b.avg_clv_pts)}</td><td>${b.clv_t==null?"–":b.clv_t}</td></tr>`};
+  const o=c.out_of_sample,sp=o&&o.spread,need=40;
+  let oos='<div class="note">尚無樣本外資料（需要後端 2.7 以上）。</div>';
+  if(sp){
+    const fo=sp.follow,fa=sp.fade,[flo,fhi]=wl(fa.wins,fa.wins+fa.losses),[olo,ohi]=wl(fo.wins,fo.wins+fo.losses);
+    const verdict=sp.n<need?`樣本不足（${sp.n}/${need}），先不下結論，請不要根據這幾筆調整規則或下注。`
+      :flo>0.524?`反向勝率的 95% 區間下限高於 52.4%，在 Pinnacle 賠率下通過。運彩賠率約 1.75 的損益平衡點約 57%，請用店裡的賠率重新核對。`
+      :`反向沒有通過 52.4% 的門檻，這個假設先放棄。`;
+    oos=`<div class="note">起點：台灣 ${twt(o.since_utc,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}。「反向」是事後從前 26 筆讓分 pick 想到的假設，只有這個時間之後鎖定的 pick 才是公平的檢驗。</div>
+    <div class="bar2" aria-label="進度"><i style="width:${Math.min(sp.n/need,1)*100}%"></i></div>
+    <div class="note">讓分樣本 ${sp.n} / ${need}　（總分 ${o.total?o.total.n:0} 筆，另計）</div>
+    <table class="mono"><tr><th>方向</th><th>勝-負</th><th>勝率</th><th>95% 區間</th></tr>
+    <tr><td>跟隨盤口移動</td><td>${fo.wins}-${fo.losses}</td><td>${pc(fo.win_rate)}</td><td>${pc(olo)} ~ ${pc(ohi)}</td></tr>
+    <tr><td>反向（同一條線的另一邊）</td><td>${fa.wins}-${fa.losses}</td><td>${pc(fa.win_rate)}</td><td>${pc(flo)} ~ ${pc(fhi)}</td></tr></table>
+    <p style="margin:10px 0 0"><b>${verdict}</b></p>`;
+  }
+  const lf=c.lock_funnel||{};
+  $("#v").innerHTML=`<div class="box"><h3 style="margin-top:0">📈 策略驗證（自動從 /calibration 讀取）</h3>
+  <div class="note" style="margin-bottom:8px">已結算 ${c.sample_size} 筆，待結算 ${c.pending} 筆。起算：台灣 ${twt(c.since,{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}。損益平衡：Pinnacle 賠率 52.4%，運彩賠率約 57%。</div>
+  <div style="overflow-x:auto"><table class="mono"><tr><th>範圍</th><th>筆數</th><th>勝-負</th><th>勝率</th><th>95% 區間</th><th>平均 CLV</th><th>CLV t</th></tr>
+  ${row("整體",c.overall)}${row("讓分",c.by_market&&c.by_market.spread)}${row("大小分",c.by_market&&c.by_market.total)}</table></div>
+  <div class="note" style="margin-top:8px">95% 區間包含 50% 就表示現在分不出是運氣還是真的；CLV t 值要大於 2 才算顯著。分組（大分、小分、盤口大小）樣本太少，這裡刻意不顯示。</div></div>
+  <div class="box"><h3 style="margin-top:0">🔬 樣本外檢驗：跟隨 vs 反向（讓分）</h3>${oos}</div>
+  <div class="box note">鎖定紀錄：已鎖定 ${lf.locked??"–"}、窗口內無訊號 ${lf.no_signal??"–"}、錯過窗口 ${lf.missed_window??"–"}（錯過窗口多為修好之前的舊紀錄，不會再增加）。</div>`;
+}
+function render(){$("#v").innerHTML="";[null,today,settled,pre,evr,ver][tab]()}
 
 function perf(){
   const cut=Date.now()-30*864e5,r=P.filter(p=>p.settled&&new Date(p.commence)>cut),W=r.filter(p=>p.result==="win"),L=r.filter(p=>p.result==="loss"),U=r.length-W.length-L.length,n=W.length+L.length;
